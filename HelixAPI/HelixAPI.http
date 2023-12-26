@@ -1,0 +1,6 @@
+@HelixAPI_HostAddress = http://localhost:5168
+
+GET {{HelixAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
