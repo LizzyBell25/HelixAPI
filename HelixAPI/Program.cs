@@ -9,7 +9,7 @@ builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddDbContext<HelixDBContext>(x => x.UseSqlServer(builder.Configuration.GetConnectionString("TestDBCS")));
+//builder.Services.AddDbContext<HelixDBContext>(x => x.UseSqlServer(builder.Configuration.GetConnectionString("TestDBCS")));
 
 var app = builder.Build();
 
