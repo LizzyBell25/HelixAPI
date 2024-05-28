@@ -1,37 +1,23 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
 namespace HelixAPI.Model
 {
-    [PrimaryKey(nameof(ID), nameof(CreatorID))]
     public class Creator
     {
-        public Creator(Guid ID, int CreatorID, string Firstname, string Lastname, string SortName)
-        {
-            this.ID = ID;
-            this.CreatorID = CreatorID;
-            this.Firstname = Firstname;
-            this.Lastname = Lastname;
-            this.SortName = SortName;
-        }
+        [Key]
+        public Guid CreatorId { get; set; }
 
-        public Creator(int CreatorID, string Firstname, string Lastname, string SortName)
-        {
-            this.ID = new Guid();
-            this.CreatorID = CreatorID;
-            this.Firstname = Firstname;
-            this.Lastname = Lastname;
-            this.SortName = SortName;
-        }
+        [Required]
+        [MaxLength(100)]
+        public string FirstName { get; set; }
 
-        
-        public Guid ID { get; private set; }
+        [Required]
+        [MaxLength(100)]
+        public string LastName { get; set; }
 
-        public int CreatorID { get; set; }
-
-        public string Firstname { get; set; }
-
-        public string Lastname { get; set;}
-
+        [Required]
+        [MaxLength(100)]
         public string SortName { get; set; }
     }
 }

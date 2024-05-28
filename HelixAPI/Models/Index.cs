@@ -1,58 +1,28 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using helixapi.Models;
+using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
 namespace HelixAPI.Model
 {
-    [PrimaryKey(nameof(ID), nameof(IndexID))]
     public class Index
     {
-        public Index(Guid ID, int IndexID, Guid EntityID, Guid IndexedByID, string Location, Guid SourceID, Subject Subject)
-        {
-            this.ID = ID;
-            this.IndexID = IndexID;
-            this.EntityID = EntityID;
-            this.IndexedByID = IndexedByID;
-            this.Location = Location;
-            this.SourceID = SourceID;
-            this.Subject = Subject;
-        }
+        [Key]
+        public Guid IndexId { get; set; }
 
-        public Index(int IndexID, Guid EntityID, Guid IndexedByID, string Location, Guid SourceID, Subject Subject) 
-        {
-            this.ID = new Guid();
-            this.IndexID = IndexID;
-            this.EntityID = EntityID;
-            this.IndexedByID = IndexedByID;
-            this.Location = Location;
-            this.SourceID = SourceID;
-            this.Subject = Subject;
-        }
+        [Required]
+        public Guid EntityId { get; set; }
 
-        public Guid ID { get; private set; }
+        [Required]
+        public Guid IndexedBy { get; set; }
 
-        public int IndexID { get; set; }
-
-        public Guid EntityID { get; set; }
-
-        public Guid IndexedByID { get; set; }
-
+        [Required]
+        [MaxLength(255)]
         public string Location { get; set; }
 
-        public Guid SourceID { get; set; }
+        [Required]
+        public Guid SourceId { get; set; }
 
+        [Required]
         public Subject Subject { get; set; }
-    }
-
-    public enum Subject
-    {
-        Afterlife = 0,
-        Luck = 1,
-        Ancestors = 2,
-        Oaths = 4,
-        Valkyrie = 8,
-        BurialPractices = 16,
-        Magic = 32,
-        Jotun = 64,
-        FemaleVikings = 128,
-        MythicalCreature = 256
     }
 }

@@ -1,32 +1,26 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
 namespace HelixAPI.Model
 {
-    [PrimaryKey(nameof(ID))]
     public class User
     {
-        public User(Guid ID, string Name, string Email, bool Active)
-        {
-            this.ID = ID;
-            this.Name = Name;
-            this.Email = Email;
-            this.Active = Active;
-        }
+        [Key]
+        public Guid UserId { get; set; }
 
-        public User(string Name, string Email, bool Active)
-        {
-            this.ID = new Guid();
-            this.Name = Name;
-            this.Email = Email;
-            this.Active = Active;
-        }
+        [Required]
+        [MaxLength(50)]
+        public string Username { get; set; }
 
-        public Guid ID { get; private set; }
-
-        public string Name { get; set; }
-
+        [Required]
+        [MaxLength(100)]
         public string Email { get; set; }
 
-        public bool Active { get; set; }
+        [Required]
+        [MaxLength(255)]
+        public string Password { get; set; }
+
+        [Required]
+        public bool Active { get; set; } = true;
     }
 }

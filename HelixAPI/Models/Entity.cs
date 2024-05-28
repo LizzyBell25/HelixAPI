@@ -1,49 +1,21 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using helixapi.Models;
+using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 
 namespace HelixAPI.Model
 {
-    [PrimaryKey(nameof(ID), nameof(EntityID))]
     public class Entity
     {
-        public Entity(Guid ID, int EntityID, string Name, string Description, Category Category)
-        {
-            this.ID = ID;
-            this.EntityID = EntityID;
-            this.Name = Name;
-            this.Description = Description;
-            this.Category = Category;
-        }
+        [Key]
+        public Guid EntityId { get; set; }
 
-        public Entity(int EntityID, string Name, string Description, Category Category)
-        {
-            this.ID = new Guid();
-            this.EntityID = EntityID;
-            this.Name = Name;
-            this.Description = Description;
-            this.Category = Category;
-        }
+        [Required]
+        [MaxLength(100)]
+        public required string Name { get; set; }
 
-        public Guid ID { get; private set; }
+        public string? Description { get; set; }
 
-        public int EntityID { get; set; }
-
-        public string Name { get; set; }
-
-        public string Description { get; set; }
-
-        public Category Category { get; set; }
-    }
-
-    public enum Category
-    {
-        God = 0,
-        Aesir = 1,
-        Vanir = 2,
-        Jotun = 4,
-        Animal = 8,
-        Hero = 16,
-        Valkyrie = 32,
-        place = 64
+        [Required]
+        public Catagory Type { get; set; }
     }
 }
