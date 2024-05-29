@@ -1,24 +1,33 @@
 using Microsoft.EntityFrameworkCore;
-using helixapi.Data;
+using HelixAPI.Data;
+using Microsoft.OpenApi.Any;
+using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using System.Text.Json.Serialization;
+using System;
 
-namespace helixapi
+namespace HelixAPI
 {
-    public class Startup
+    public class Startup(IConfiguration configuration)
     {
-        public Startup(IConfiguration configuration)
-        {
-            Configuration = configuration;
-        }
-
-        public IConfiguration Configuration { get; }
+        public IConfiguration Configuration { get; } = configuration;
 
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddControllers();
             services.AddDbContext<HelixContext>(options =>
                 options.UseMySql(Configuration.GetConnectionString("DefaultConnection"),
-                    new MySqlServerVersion(new Version(10, 4, 21))));
-            services.AddSwaggerGen();
+                new MariaDbServerVersion(new Version(10, 5, 9)))); // Specify the MariaDB version you are using
+
+            services.AddControllers()
+                .AddJsonOptions(options =>
+                    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter())); // Add this line
+
+            services.AddSwaggerGen(c =>
+            {
+                c.SwaggerDoc("v1", new OpenApiInfo { Title = "MyWebApi", Version = "v1" });
+                c.EnableAnnotations();
+                c.SchemaFilter<EnumSchemaFilter>(); // Add this line
+            });
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -26,9 +35,9 @@ namespace helixapi
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
-                app.UseSwagger();
-                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "helixapi v1"));
             }
+
+            app.UseHttpsRedirection();
 
             app.UseRouting();
 
@@ -38,6 +47,25 @@ namespace helixapi
             {
                 endpoints.MapControllers();
             });
+
+            app.UseSwagger();
+            app.UseSwaggerUI(c =>
+            {
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "MyWebApi v1");
+            });
+        }
+    }
+
+    public class EnumSchemaFilter : ISchemaFilter
+    {
+        public void Apply(OpenApiSchema schema, SchemaFilterContext context)
+        {
+            if (context.Type.IsEnum)
+            {
+                schema.Enum = Enum.GetNames(context.Type).Select(n => new OpenApiString(n)).ToList<IOpenApiAny>();
+                schema.Type = "string";
+                schema.Format = null;
+            }
         }
     }
 

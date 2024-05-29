@@ -1,4 +1,4 @@
-﻿using helixapi.Models;
+﻿using HelixAPI.Model;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 
@@ -17,7 +17,7 @@ namespace HelixAPI.Model
 
         [Required]
         [MaxLength(255)]
-        public string Location { get; set; }
+        public required string Location { get; set; }
 
         [Required]
         public Guid SourceId { get; set; }

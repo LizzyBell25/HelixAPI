@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using helixapi.Data;
-using helixapi.Models;
+using HelixAPI.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;

@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using HelixAPI.Model;
 
-namespace helixapi.Data
+namespace HelixAPI.Data
 {
     public class HelixContext : DbContext
     {

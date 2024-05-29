@@ -38,3 +38,10 @@
 /HelixAPI/obj/HelixAPI.csproj.nuget.g.targets
 /HelixAPI/obj/project.assets.json
 /HelixAPI/obj/project.nuget.cache
+/HelixAPI.Tests/bin/Debug/net8.0/CoverletSourceRootsMapping_HelixAPI.Tests
+/HelixAPI.Tests/obj/Debug/net8.0
+/HelixAPI.Tests/.vs/VSWorkspaceState.json
+/MyWebApi.Tests
+/HelixAPI.Tests/bin/Release/net8.0
+/HelixAPI.Tests/obj/Release/net8.0
+/HelixAPI.Tests/obj

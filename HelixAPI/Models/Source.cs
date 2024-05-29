@@ -1,4 +1,4 @@
-﻿using helixapi.Models;
+﻿using HelixAPI.Model;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 
@@ -14,11 +14,11 @@ namespace HelixAPI.Model
 
         [Required]
         [MaxLength(100)]
-        public string Publisher { get; set; }
+        public required string Publisher { get; set; }
 
         [Required]
         [MaxLength(255)]
-        public string Url { get; set; }
+        public required string Url { get; set; }
 
         [Required]
         public Guid CreatorId { get; set; }

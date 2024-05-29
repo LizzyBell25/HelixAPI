@@ -1,4 +1,4 @@
-﻿using helixapi.Models;
+﻿using HelixAPI.Model;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 

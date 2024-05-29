@@ -10,14 +10,14 @@ namespace HelixAPI.Model
 
         [Required]
         [MaxLength(100)]
-        public string FirstName { get; set; }
+        public required string FirstName { get; set; }
 
         [Required]
         [MaxLength(100)]
-        public string LastName { get; set; }
+        public required string LastName { get; set; }
 
         [Required]
         [MaxLength(100)]
-        public string SortName { get; set; }
+        public required string SortName { get; set; }
     }
 }
