@@ -57,7 +57,7 @@ namespace HelixAPI.Controllers
                     throw;
             }
 
-            return NoContent();
+            return Ok(Source);
         }
 
         // POST: api/Sources

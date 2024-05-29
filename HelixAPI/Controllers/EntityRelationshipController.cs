@@ -57,7 +57,7 @@ namespace HelixAPI.Controllers
                     throw;
             }
 
-            return NoContent();
+            return Ok(EntityRelationship);
         }
 
         // POST: api/EntityRelationships

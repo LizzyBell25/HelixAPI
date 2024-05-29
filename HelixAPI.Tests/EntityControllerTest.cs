@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
@@ -9,13 +10,13 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Xunit;
-using HelixAPI; // Ensure this matches your main project namespace
+using HelixAPI;
 using HelixAPI.Model;
-using HelixAPI.Data; // Ensure this matches your models namespace
+using HelixAPI.Data;
 
 namespace HelixAPI.Tests
 {
-    public class EntityControllerTests : IClassFixture<WebApplicationFactory<Startup>>
+    public class EntityControllerTests : IClassFixture<WebApplicationFactory<Startup>>, IDisposable
     {
         private readonly HttpClient _client;
         private readonly JsonSerializerOptions _jsonSerializerOptions;
@@ -27,7 +28,7 @@ namespace HelixAPI.Tests
             {
                 builder.ConfigureServices(services =>
                 {
-                    // Remove the app's MyDbContext registration.
+                    // Remove the app's HelixContext registration.
                     var descriptor = services.SingleOrDefault(
                         d => d.ServiceType ==
                              typeof(DbContextOptions<HelixContext>));
@@ -37,7 +38,7 @@ namespace HelixAPI.Tests
                         services.Remove(descriptor);
                     }
 
-                    // Add MyDbContext using an in-memory database for testing.
+                    // Add HelixContext using an in-memory database for testing.
                     services.AddDbContext<HelixContext>(options =>
                     {
                         options.UseInMemoryDatabase("InMemoryDbForTesting");
@@ -47,7 +48,7 @@ namespace HelixAPI.Tests
                     var sp = services.BuildServiceProvider();
 
                     // Create a scope to obtain a reference to the database
-                    // context (MyDbContext).
+                    // context (HelixContext).
                     using (var scope = sp.CreateScope())
                     {
                         var scopedServices = scope.ServiceProvider;
@@ -65,6 +66,16 @@ namespace HelixAPI.Tests
                 PropertyNameCaseInsensitive = true
             };
             _jsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        }
+
+        public void Dispose()
+        {
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<HelixContext>();
+                context.Entities.RemoveRange(context.Entities);
+                context.SaveChanges();
+            }
         }
 
         [Fact]
@@ -92,6 +103,61 @@ namespace HelixAPI.Tests
         }
 
         [Fact]
+        public async Task GetEntities_ShouldReturnAllEntities()
+        {
+            // Arrange
+            var entities = new[]
+            {
+                new Entity
+                {
+                    Entity_Id = Guid.NewGuid(),
+                    Name = "Odin",
+                    Description = "Allfather",
+                    Type = Catagory.God
+                },
+                new Entity
+                {
+                    Entity_Id = Guid.NewGuid(),
+                    Name = "Thor",
+                    Description = "God of Thunder",
+                    Type = Catagory.God
+                },
+                new Entity
+                {
+                    Entity_Id = Guid.NewGuid(),
+                    Name = "Freya",
+                    Description = "Goddess of Love",
+                    Type = Catagory.God
+                }
+            };
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<HelixContext>();
+                context.Entities.AddRange(entities);
+                context.SaveChanges();
+            }
+
+            // Act
+            var response = await _client.GetAsync("/api/entities");
+
+            // Log the response content for debugging
+            var responseString = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"Response content: {responseString}");
+
+            // Assert
+            response.EnsureSuccessStatusCode();
+            var returnedEntities = JsonSerializer.Deserialize<List<Entity>>(responseString, _jsonSerializerOptions);
+            Assert.NotNull(returnedEntities);
+            Assert.Equal(3, returnedEntities.Count);
+
+            foreach (var entity in entities)
+            {
+                Assert.Contains(returnedEntities, e => e.Entity_Id == entity.Entity_Id && e.Name == entity.Name);
+            }
+        }
+        
+        [Fact]
         public async Task GetEntity_ShouldReturnEntity()
         {
             // Arrange
@@ -103,9 +169,12 @@ namespace HelixAPI.Tests
                 Type = Catagory.God
             };
 
-            var context = _factory.Services.CreateScope().ServiceProvider.GetRequiredService<HelixContext>();
-            context.Entities.Add(newEntity);
-            context.SaveChanges();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<HelixContext>();
+                context.Entities.Add(newEntity);
+                context.SaveChanges();
+            }
 
             // Act
             var response = await _client.GetAsync($"/api/entities/{newEntity.Entity_Id}");
@@ -156,11 +225,9 @@ namespace HelixAPI.Tests
 
             // Assert
             response.EnsureSuccessStatusCode();
-
             var returnedEntity = JsonSerializer.Deserialize<Entity>(responseString, _jsonSerializerOptions);
             Assert.Equal(updatedEntity.Description, returnedEntity.Description);
         }
-
 
         [Fact]
         public async Task DeleteEntity_ShouldRemoveEntity()
@@ -194,5 +261,6 @@ namespace HelixAPI.Tests
                 Assert.Null(deletedEntity);
             }
         }
+
     }
 }

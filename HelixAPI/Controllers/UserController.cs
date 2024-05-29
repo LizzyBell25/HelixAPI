@@ -57,7 +57,7 @@ namespace helixapi.Controllers
                     throw;
             }
 
-            return NoContent();
+            return Ok(User);
         }
 
         // POST: api/Users

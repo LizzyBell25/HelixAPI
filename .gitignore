@@ -30,3 +30,4 @@
 /HelixAPI.Tests/obj/HelixAPI.Tests.csproj.nuget.g.targets
 /HelixAPI.Tests/obj/project.assets.json
 /HelixAPI.Tests/obj/project.nuget.cache
+*.testlog
