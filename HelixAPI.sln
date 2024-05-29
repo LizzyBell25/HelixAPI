@@ -5,10 +5,7 @@ VisualStudioVersion = 17.8.34322.80
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HelixAPI", "HelixAPI\HelixAPI.csproj", "{92139329-B040-44F1-BE2D-B3202B2419FB}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HelixAPI.Tests", "MyWebApi.Tests\HelixAPI.Tests.csproj", "{D8021A24-7A46-4075-9D77-EF173E07968E}"
-	ProjectSection(ProjectDependencies) = postProject
-		{92139329-B040-44F1-BE2D-B3202B2419FB} = {92139329-B040-44F1-BE2D-B3202B2419FB}
-	EndProjectSection
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HelixAPI.Tests", "HelixAPI.Tests\HelixAPI.Tests.csproj", "{45D49E60-D298-4B19-89D3-8B892FA1E63B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -20,10 +17,10 @@ Global
 		{92139329-B040-44F1-BE2D-B3202B2419FB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{92139329-B040-44F1-BE2D-B3202B2419FB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{92139329-B040-44F1-BE2D-B3202B2419FB}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D8021A24-7A46-4075-9D77-EF173E07968E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D8021A24-7A46-4075-9D77-EF173E07968E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D8021A24-7A46-4075-9D77-EF173E07968E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D8021A24-7A46-4075-9D77-EF173E07968E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{45D49E60-D298-4B19-89D3-8B892FA1E63B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{45D49E60-D298-4B19-89D3-8B892FA1E63B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{45D49E60-D298-4B19-89D3-8B892FA1E63B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{45D49E60-D298-4B19-89D3-8B892FA1E63B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

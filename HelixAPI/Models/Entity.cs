@@ -7,7 +7,7 @@ namespace HelixAPI.Model
     public class Entity
     {
         [Key]
-        public Guid EntityId { get; set; }
+        public Guid Entity_Id { get; set; }
 
         [Required]
         [MaxLength(100)]

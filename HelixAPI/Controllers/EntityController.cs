@@ -1,14 +1,13 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using helixapi.Data;
-using helixapi.Models;
+using HelixAPI.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HelixAPI.Model;
 
-namespace helixapi.Controllers
+namespace HelixAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
@@ -39,7 +38,7 @@ namespace helixapi.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> PutEntity(Guid id, Entity entity)
         {
-            if (id != entity.EntityId)
+            if (id != entity.Entity_Id)
                 return BadRequest();
 
             _context.Entry(entity).State = EntityState.Modified;
@@ -56,17 +55,26 @@ namespace helixapi.Controllers
                     throw;
             }
 
-            return NoContent();
+            // Return the updated entity
+            return Ok(entity);
         }
+
 
         // POST: api/Entities
         [HttpPost]
         public async Task<ActionResult<Entity>> PostEntity(Entity entity)
         {
-            _context.Entities.Add(entity);
-            await _context.SaveChangesAsync();
+            try
+            {
+                _context.Entities.Add(entity);
+                await _context.SaveChangesAsync();
+            } 
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
 
-            return CreatedAtAction("GetEntity", new { id = entity.EntityId }, entity);
+            return CreatedAtAction("GetEntity", new { id = entity.Entity_Id }, entity);
         }
 
         // DELETE: api/Entities/5
@@ -85,7 +93,7 @@ namespace helixapi.Controllers
 
         private bool EntityExists(Guid id)
         {
-            return _context.Entities.Any(e => e.EntityId == id);
+            return _context.Entities.Any(e => e.Entity_Id == id);
         }
     }
 }

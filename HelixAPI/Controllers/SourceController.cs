@@ -1,14 +1,13 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using helixapi.Data;
-using helixapi.Models;
+using HelixAPI.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HelixAPI.Model;
 
-namespace helixapi.Controllers
+namespace HelixAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]

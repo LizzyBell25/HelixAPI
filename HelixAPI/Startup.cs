@@ -8,26 +8,34 @@ using System;
 
 namespace HelixAPI
 {
-    public class Startup(IConfiguration configuration)
+    public class Startup
     {
-        public IConfiguration Configuration { get; } = configuration;
+        public Startup(IConfiguration configuration)
+        {
+            Configuration = configuration;
+        }
+
+        public IConfiguration Configuration { get; }
 
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddDbContext<HelixContext>(options =>
                 options.UseMySql(Configuration.GetConnectionString("DefaultConnection"),
-                new MariaDbServerVersion(new Version(10, 5, 9)))); // Specify the MariaDB version you are using
+                    new MariaDbServerVersion(new Version(10, 5, 9))));
 
             services.AddControllers()
                 .AddJsonOptions(options =>
-                    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter())); // Add this line
+                {
+                    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+                });
 
             services.AddSwaggerGen(c =>
             {
-                c.SwaggerDoc("v1", new OpenApiInfo { Title = "MyWebApi", Version = "v1" });
+                c.SwaggerDoc("v1", new OpenApiInfo { Title = "HelixAPI", Version = "v1" });
                 c.EnableAnnotations();
-                c.SchemaFilter<EnumSchemaFilter>(); // Add this line
             });
+
+            // Other service configurations...
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -35,6 +43,8 @@ namespace HelixAPI
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
+                app.UseSwagger();
+                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "HelixAPI v1"));
             }
 
             app.UseHttpsRedirection();
@@ -46,12 +56,6 @@ namespace HelixAPI
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
-            });
-
-            app.UseSwagger();
-            app.UseSwaggerUI(c =>
-            {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "MyWebApi v1");
             });
         }
     }
