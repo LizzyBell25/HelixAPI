@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.JsonPatch;
 using HelixAPI.Data;
 using HelixAPI.Model;
+using HelixAPI.Helpers;
 
 namespace HelixAPI.Controllers
 {
@@ -41,6 +42,61 @@ namespace HelixAPI.Controllers
 
             return index;
         }
+
+        // GET: api/v1/Indexes/query
+        [HttpGet("query")]
+        public async Task<IActionResult> QueryIndexes(
+            [FromQuery] Guid? entity_id = null,
+            [FromQuery] Guid? indexed_by = null,
+            [FromQuery] Guid? source_id = null,
+            [FromQuery] string? location = null,
+            [FromQuery] Subject? subject = null,
+            [FromQuery] int size = 100,
+            [FromQuery] int offset = 0,
+            [FromQuery] string sortBy = "",
+            [FromQuery] string sortOrder = "asc",
+            [FromQuery] string? fields = null)
+        {
+            var query = _context.Indexes.AsQueryable();
+
+            if (entity_id != null)
+                query = query.Where(i => i.Entity_Id == entity_id);
+
+            if (indexed_by != null)
+                query = query.Where(i => i.Indexed_By == indexed_by);
+
+            if (source_id != null)
+                query = query.Where(i => i.Source_Id == source_id);
+
+            if (!string.IsNullOrEmpty(location))
+                query = query.Where(i => i.Location.Contains(location));
+
+            if (subject != null)
+                query = query.Where(i => i.Subject == subject);
+
+            // Sorting
+            query = sortBy.ToLower() switch
+            {
+                "entity_id" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(i => i.Entity_Id) : query.OrderBy(i => i.Entity_Id),
+                "indexed_by" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(i => i.Indexed_By) : query.OrderBy(i => i.Indexed_By),
+                "source_id" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(i => i.Source_Id) : query.OrderBy(i => i.Source_Id),
+                "location" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(i => i.Location) : query.OrderBy(i => i.Location),
+                "subject" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(i => i.Subject) : query.OrderBy(i => i.Subject),
+                _ => query.OrderBy(i => i.Entity_Id),
+            };
+            var indexes = await query.Skip(offset).Take(size).ToListAsync();
+
+            if (indexes.Count == 0)
+                return NotFound();
+
+            if (string.IsNullOrEmpty(fields))
+                return Ok(indexes);
+
+            var selectedFields = fields.Split(',').Select(f => f.Trim()).ToList();
+            var response = indexes.Select(i => ConvertionHelpers.CreateExpandoObject(i, selectedFields));
+
+            return Ok(response);
+        }
         #endregion
 
         #region Update
@@ -59,10 +115,10 @@ namespace HelixAPI.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!IndexExists(id))
-                    return NotFound();
-                else
+                if (_context.Indexes.Any(i => i.Index_Id == id))
                     throw;
+                else
+                    return NotFound();
             }
 
             return NoContent();
@@ -103,13 +159,6 @@ namespace HelixAPI.Controllers
             await _context.SaveChangesAsync();
 
             return NoContent();
-        }
-        #endregion
-
-        #region Helpers
-        private bool IndexExists(Guid id)
-        {
-            return _context.Indexes.Any(i => i.Index_Id == id);
         }
         #endregion
     }

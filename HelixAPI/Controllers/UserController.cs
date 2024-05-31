@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.JsonPatch;
 using HelixAPI.Data;
 using HelixAPI.Model;
+using HelixAPI.Helpers;
 
 namespace HelixAPI.Controllers
 {
@@ -41,6 +42,51 @@ namespace HelixAPI.Controllers
 
             return user;
         }
+
+        // GET: api/v1/Users/query
+        [HttpGet("query")]
+        public async Task<IActionResult> QueryUsers(
+            [FromQuery] string? username = null,
+            [FromQuery] string? email = null,
+            [FromQuery] bool? active = null,
+            [FromQuery] int size = 100,
+            [FromQuery] int offset = 0,
+            [FromQuery] string sortBy = "",
+            [FromQuery] string sortOrder = "asc",
+            [FromQuery] string? fields = null)
+        {
+            var query = _context.Users.AsQueryable();
+
+            if (!string.IsNullOrEmpty(username))
+                query = query.Where(u => u.Username.Contains(username));
+
+            if (!string.IsNullOrEmpty(email))
+                query = query.Where(u => u.Email.Contains(email));
+
+            if (active != null)
+                query = query.Where(u => u.Active == active);
+
+            // Sorting
+            query = sortBy.ToLower() switch
+            {
+                "username" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(u => u.Username) : query.OrderBy(u => u.Username),
+                "email" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(u => u.Email) : query.OrderBy(u => u.Email),
+                "active" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(u => u.Active) : query.OrderBy(u => u.Active),
+                _ => query.OrderBy(u => u.User_Id),
+            };
+            var users = await query.Skip(offset).Take(size).ToListAsync();
+
+            if (users.Count == 0)
+                return NotFound();
+
+            if (string.IsNullOrEmpty(fields))
+                return Ok(users);
+
+            var selectedFields = fields.Split(',').Select(f => f.Trim()).ToList();
+            var response = users.Select(u => ConvertionHelpers.CreateExpandoObject(u, selectedFields));
+
+            return Ok(response);
+        }
         #endregion
 
         #region Update
@@ -59,10 +105,10 @@ namespace HelixAPI.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!UserExists(id))
-                    return NotFound();
-                else
+                if (_context.Users.Any(u => u.User_Id == id))
                     throw;
+                else
+                    return NotFound();
             }
 
             return NoContent();
@@ -103,13 +149,6 @@ namespace HelixAPI.Controllers
             await _context.SaveChangesAsync();
 
             return NoContent();
-        }
-        #endregion
-
-        #region Helpers
-        private bool UserExists(Guid id)
-        {
-            return _context.Users.Any(u => u.User_Id == id);
         }
         #endregion
     }

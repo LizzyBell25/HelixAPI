@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.JsonPatch;
 using HelixAPI.Data;
 using HelixAPI.Model;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using HelixAPI.Helpers;
 
 namespace HelixAPI.Controllers
 {
@@ -41,6 +43,51 @@ namespace HelixAPI.Controllers
             
             return entity;
         }
+
+        // GET: api/v1/Entities/query
+        [HttpGet("query")]
+        public async Task<IActionResult> QueryEntities(
+            [FromQuery] string? name = null,
+            [FromQuery] string? description = null,
+            [FromQuery] Catagory? type = null,
+            [FromQuery] int size = 100,
+            [FromQuery] int offset = 0,
+            [FromQuery] string sortBy = "",
+            [FromQuery] string sortOrder = "asc",
+            [FromQuery] string? fields = null)
+        {
+            var query = _context.Entities.AsQueryable();
+
+            if (!string.IsNullOrEmpty(name))
+                query = query.Where(e => e.Name.Contains(name));
+
+            if (!string.IsNullOrEmpty(description))
+                query = query.Where(e => e.Description.Contains(description));
+
+            if (type != null)
+                query = query.Where(e => e.Type == type);
+
+            // Sorting
+            query = sortBy.ToLower() switch
+            {
+                "name" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(e => e.Name) : query.OrderBy(e => e.Name),
+                "description" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(e => e.Description) : query.OrderBy(e => e.Description),
+                "type" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(e => e.Type) : query.OrderBy(e => e.Type),
+                _ => query.OrderBy(e => e.Entity_Id),
+            };
+            var entities = await query.Skip(offset).Take(size).ToListAsync();
+
+            if (entities.Count == 0)
+                return NotFound();
+
+            if (string.IsNullOrEmpty(fields))
+                return Ok(entities);
+
+            var selectedFields = fields.Split(',').Select(f => f.Trim()).ToList();
+            var response = entities.Select(e => ConvertionHelpers.CreateExpandoObject<Entity>(e, selectedFields));
+
+            return Ok(response);
+        }
         #endregion
 
         #region Update
@@ -59,10 +106,10 @@ namespace HelixAPI.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!EntityExists(id))
-                    return NotFound();
-                else
+                if (_context.Entities.Any(e => e.Entity_Id == id))
                     throw;
+                else
+                    return NotFound();
             }
 
             return NoContent();
@@ -103,13 +150,6 @@ namespace HelixAPI.Controllers
             await _context.SaveChangesAsync();
 
             return NoContent();
-        }
-        #endregion
-
-        #region Helpers
-        private bool EntityExists(Guid id)
-        {
-            return _context.Entities.Any(e => e.Entity_Id == id);
         }
         #endregion
     }

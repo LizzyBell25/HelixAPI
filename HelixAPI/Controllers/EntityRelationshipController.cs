@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.JsonPatch;
 using HelixAPI.Data;
 using HelixAPI.Model;
+using HelixAPI.Helpers;
 
 namespace HelixAPI.Controllers
 {
@@ -41,6 +42,51 @@ namespace HelixAPI.Controllers
 
             return relationship;
         }
+
+        // GET: api/v1/EntityRelationships/query
+        [HttpGet("query")]
+        public async Task<IActionResult> QueryRelationships(
+            [FromQuery] Guid? entity1_id = null,
+            [FromQuery] Guid? entity2_id = null,
+            [FromQuery] RelationshipType? relationship_type = null,
+            [FromQuery] int size = 100,
+            [FromQuery] int offset = 0,
+            [FromQuery] string sortBy = "",
+            [FromQuery] string sortOrder = "asc",
+            [FromQuery] string? fields = null)
+        {
+            var query = _context.EntityRelationships.AsQueryable();
+
+            if (entity1_id != null)
+                query = query.Where(r => r.Entity1_Id == entity1_id);
+
+            if (entity2_id != null)
+                query = query.Where(r => r.Entity2_Id == entity2_id);
+
+            if (relationship_type != null)
+                query = query.Where(r => r.Relationship_Type == relationship_type);
+
+            // Sorting
+            query = sortBy.ToLower() switch
+            {
+                "entity1_id" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(r => r.Entity1_Id) : query.OrderBy(r => r.Entity1_Id),
+                "entity2_id" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(r => r.Entity2_Id) : query.OrderBy(r => r.Entity2_Id),
+                "relationship_type" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(r => r.Relationship_Type) : query.OrderBy(r => r.Relationship_Type),
+                _ => query.OrderBy(e => e.Relationship_Id),
+            };
+            var relationships = await query.Skip(offset).Take(size).ToListAsync();
+
+            if (relationships.Count == 0)
+                return NotFound();
+
+            if (string.IsNullOrEmpty(fields))
+                return Ok(relationships);
+
+            var selectedFields = fields.Split(',').Select(f => f.Trim()).ToList();
+            var response = relationships.Select(r => ConvertionHelpers.CreateExpandoObject<EntityRelationship>(r, selectedFields));
+
+            return Ok(response);
+        }
         #endregion
 
         #region Update
@@ -59,10 +105,10 @@ namespace HelixAPI.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!RelationshipExists(id))
-                    return NotFound();
-                else
+                if (_context.EntityRelationships.Any(r => r.Relationship_Id == id))
                     throw;
+                else
+                    return NotFound();
             }
 
             return NoContent();
@@ -103,13 +149,6 @@ namespace HelixAPI.Controllers
             await _context.SaveChangesAsync();
 
             return NoContent();
-        }
-        #endregion
-
-        #region Helpers
-        private bool RelationshipExists(Guid id)
-        {
-            return _context.EntityRelationships.Any(er => er.Relationship_Id == id);
         }
         #endregion
     }

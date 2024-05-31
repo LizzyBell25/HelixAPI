@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.JsonPatch;
 using HelixAPI.Data;
 using HelixAPI.Model;
+using System.Dynamic;
+using System.Reflection;
+using HelixAPI.Helpers;
 
 namespace HelixAPI.Controllers
 {
@@ -41,6 +44,51 @@ namespace HelixAPI.Controllers
 
             return creator;
         }
+
+        // GET: api/v1/Creators/query
+        [HttpGet("query")]
+        public async Task<IActionResult> QueryCreators(
+            [FromQuery] string? first_name = null,
+            [FromQuery] string? last_name = null,
+            [FromQuery] string? sort_name = null,
+            [FromQuery] int size = 100,
+            [FromQuery] int offset = 0,
+            [FromQuery] string sortBy = "",
+            [FromQuery] string sortOrder = "asc",
+            [FromQuery] string? fields = null)
+        {
+            var query = _context.Creators.AsQueryable();
+
+            if (!string.IsNullOrEmpty(first_name))
+                query = query.Where(c => c.First_Name.Contains(first_name));
+
+            if (!string.IsNullOrEmpty(last_name))
+                query = query.Where(c => c.Last_Name.Contains(last_name));
+
+            if (!string.IsNullOrEmpty(sort_name))
+                query = query.Where(c => c.Sort_Name.Contains(sort_name));
+
+            // Sorting
+            query = sortBy.ToLower() switch
+            {
+                "first_name" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(c => c.First_Name) : query.OrderBy(c => c.First_Name),
+                "last_name" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(c => c.Last_Name) : query.OrderBy(c => c.Last_Name),
+                "sort_name" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(c => c.Sort_Name) : query.OrderBy(c => c.Sort_Name),
+                _ => query.OrderBy(c => c.Creator_Id),
+            };
+            var creators = await query.Skip(offset).Take(size).ToListAsync();
+
+            if (creators.Count == 0)
+                return NotFound();
+
+            if (string.IsNullOrEmpty(fields))
+                return Ok(creators);
+
+            var selectedFields = fields.Split(',').Select(f => f.Trim()).ToList();
+            var response = creators.Select(c => ConvertionHelpers.CreateExpandoObject<Creator>(c, selectedFields));
+
+            return Ok(response);
+        }
         #endregion
 
         #region Update
@@ -59,10 +107,10 @@ namespace HelixAPI.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!CreatorExists(id))
-                    return NotFound();
-                else
+                if (_context.Creators.Any(c => c.Creator_Id == id))
                     throw;
+                else
+                    return NotFound();
             }
 
             return NoContent();
@@ -103,13 +151,6 @@ namespace HelixAPI.Controllers
             await _context.SaveChangesAsync();
 
             return NoContent();
-        }
-        #endregion
-
-        #region Helpers
-        private bool CreatorExists(Guid id)
-        {
-            return _context.Creators.Any(c => c.Creator_Id == id);
         }
         #endregion
     }
