@@ -10,7 +10,7 @@
         Norse, AngloSaxon, Continental, PanGermanic
     }
 
-    public enum Content
+    public enum ContentType
     {
         Reconstruction, PhilosophyTheology, PersonalModernPraxis, HistoricalLore
     }

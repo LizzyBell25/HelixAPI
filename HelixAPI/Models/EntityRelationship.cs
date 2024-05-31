@@ -7,15 +7,15 @@ namespace HelixAPI.Model
     public class EntityRelationship
     {
         [Key]
-        public Guid RelationshipId { get; set; }
+        public Guid Relationship_Id { get; set; }
 
         [Required]
-        public Guid Entity1Id { get; set; }
+        public required Guid Entity1_Id { get; set; }
 
         [Required]
-        public Guid Entity2Id { get; set; }
+        public required Guid Entity2_Id { get; set; }
 
         [Required]
-        public RelationshipType RelationshipType { get; set; }
+        public required RelationshipType Relationship_Type { get; set; }
     }
 }

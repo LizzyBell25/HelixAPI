@@ -1,49 +1,57 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.JsonPatch;
 using HelixAPI.Data;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using HelixAPI.Model;
 
 namespace HelixAPI.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/v1/[controller]")]
     [ApiController]
     public class EntityRelationshipsController(HelixContext context) : ControllerBase
     {
         private readonly HelixContext _context = context;
 
-        // GET: api/EntityRelationships
+        #region Create
+        // POST: api/v1/EntityRelationships
+        [HttpPost]
+        public async Task<ActionResult<EntityRelationship>> PostRelationship([FromBody] EntityRelationship relationship)
+        {
+            _context.EntityRelationships.Add(relationship);
+            await _context.SaveChangesAsync();
+            return CreatedAtAction("GetRelationship", new { id = relationship.Relationship_Id }, relationship);
+        }
+        #endregion
+
+        #region Read
+        // GET: api/v1/EntityRelationships
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<EntityRelationship>>> GetEntityRelationships()
+        public async Task<ActionResult<IEnumerable<EntityRelationship>>> GetRelationships()
         {
             return await _context.EntityRelationships.ToListAsync();
         }
 
-        // GET: api/EntityRelationships/5
+        // GET: api/v1/EntityRelationships/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<EntityRelationship>> GetEntityRelationship(Guid id)
+        public async Task<ActionResult<EntityRelationship>> GetRelationship(Guid id)
         {
-            var EntityRelationship = await _context.EntityRelationships.FindAsync(id);
-
-            if (EntityRelationship == null)
+            var relationship = await _context.EntityRelationships.FindAsync(id);
+            if (relationship == null)
                 return NotFound();
 
-            return EntityRelationship;
+            return relationship;
         }
+        #endregion
 
-        // PUT: api/EntityRelationships/5
+        #region Update
+        // PUT: api/v1/EntityRelationships/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutEntityRelationship(Guid id, EntityRelationship EntityRelationship)
+        public async Task<IActionResult> PutRelationship(Guid id, [FromBody] EntityRelationship relationship)
         {
-            if (id != EntityRelationship.RelationshipId)
-            {
+            if (id != relationship.Relationship_Id)
                 return BadRequest();
-            }
 
-            _context.Entry(EntityRelationship).State = EntityState.Modified;
+            _context.Entry(relationship).State = EntityState.Modified;
 
             try
             {
@@ -51,42 +59,58 @@ namespace HelixAPI.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!EntityRelationshipExists(id))
+                if (!RelationshipExists(id))
                     return NotFound();
                 else
                     throw;
             }
 
-            return Ok(EntityRelationship);
+            return NoContent();
         }
 
-        // POST: api/EntityRelationships
-        [HttpPost]
-        public async Task<ActionResult<EntityRelationship>> PostEntityRelationship(EntityRelationship EntityRelationship)
+        // PATCH: api/v1/EntityRelationships/5
+        [HttpPatch("{id}")]
+        public async Task<IActionResult> PatchRelationship(Guid id, [FromBody] JsonPatchDocument<EntityRelationship> patchDoc)
         {
-            _context.EntityRelationships.Add(EntityRelationship);
-            await _context.SaveChangesAsync();
+            if (patchDoc == null)
+                return BadRequest();
 
-            return CreatedAtAction("GetEntityRelationship", new { id = EntityRelationship.RelationshipId }, EntityRelationship);
-        }
-
-        // DELETE: api/EntityRelationships/5
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteEntityRelationship(Guid id)
-        {
-            var EntityRelationship = await _context.EntityRelationships.FindAsync(id);
-            if (EntityRelationship == null)
+            var relationship = await _context.EntityRelationships.FindAsync(id);
+            if (relationship == null)
                 return NotFound();
 
-            _context.EntityRelationships.Remove(EntityRelationship);
+            patchDoc.ApplyTo(relationship, (Microsoft.AspNetCore.JsonPatch.Adapters.IObjectAdapter)ModelState);
+
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
             await _context.SaveChangesAsync();
 
             return NoContent();
         }
+        #endregion
 
-        private bool EntityRelationshipExists(Guid id)
+        #region Delete
+        // DELETE: api/v1/EntityRelationships/5
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteRelationship(Guid id)
         {
-            return _context.EntityRelationships.Any(e => e.RelationshipId == id);
+            var relationship = await _context.EntityRelationships.FindAsync(id);
+            if (relationship == null)
+                return NotFound();
+
+            _context.EntityRelationships.Remove(relationship);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
+        #endregion
+
+        #region Helpers
+        private bool RelationshipExists(Guid id)
+        {
+            return _context.EntityRelationships.Any(er => er.Relationship_Id == id);
+        }
+        #endregion
     }
 }

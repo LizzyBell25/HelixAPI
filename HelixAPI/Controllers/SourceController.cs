@@ -1,49 +1,57 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.JsonPatch;
 using HelixAPI.Data;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using HelixAPI.Model;
 
 namespace HelixAPI.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/v1/[controller]")]
     [ApiController]
     public class SourcesController(HelixContext context) : ControllerBase
     {
         private readonly HelixContext _context = context;
 
-        // GET: api/Sources
+        #region Create
+        // POST: api/v1/Sources
+        [HttpPost]
+        public async Task<ActionResult<Source>> PostSource([FromBody] Source source)
+        {
+            _context.Sources.Add(source);
+            await _context.SaveChangesAsync();
+            return CreatedAtAction("GetSource", new { id = source.Source_Id }, source);
+        }
+        #endregion
+
+        #region Read
+        // GET: api/v1/Sources
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Source>>> GetSources()
         {
             return await _context.Sources.ToListAsync();
         }
 
-        // GET: api/Sources/5
+        // GET: api/v1/Sources/5
         [HttpGet("{id}")]
         public async Task<ActionResult<Source>> GetSource(Guid id)
         {
-            var Source = await _context.Sources.FindAsync(id);
-
-            if (Source == null)
+            var source = await _context.Sources.FindAsync(id);
+            if (source == null)
                 return NotFound();
 
-            return Source;
+            return source;
         }
+        #endregion
 
-        // PUT: api/Sources/5
+        #region Update
+        // PUT: api/v1/Sources/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutSource(Guid id, Source Source)
+        public async Task<IActionResult> PutSource(Guid id, [FromBody] Source source)
         {
-            if (id != Source.SourceId)
-            {
+            if (id != source.Source_Id)
                 return BadRequest();
-            }
 
-            _context.Entry(Source).State = EntityState.Modified;
+            _context.Entry(source).State = EntityState.Modified;
 
             try
             {
@@ -57,36 +65,52 @@ namespace HelixAPI.Controllers
                     throw;
             }
 
-            return Ok(Source);
+            return NoContent();
         }
 
-        // POST: api/Sources
-        [HttpPost]
-        public async Task<ActionResult<Source>> PostSource(Source Source)
+        // PATCH: api/v1/Sources/5
+        [HttpPatch("{id}")]
+        public async Task<IActionResult> PatchSource(Guid id, [FromBody] JsonPatchDocument<Source> patchDoc)
         {
-            _context.Sources.Add(Source);
-            await _context.SaveChangesAsync();
+            if (patchDoc == null)
+                return BadRequest();
 
-            return CreatedAtAction("GetSource", new { id = Source.SourceId }, Source);
-        }
-
-        // DELETE: api/Sources/5
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteSource(Guid id)
-        {
-            var Source = await _context.Sources.FindAsync(id);
-            if (Source == null)
+            var source = await _context.Sources.FindAsync(id);
+            if (source == null)
                 return NotFound();
 
-            _context.Sources.Remove(Source);
+            patchDoc.ApplyTo(source, (Microsoft.AspNetCore.JsonPatch.Adapters.IObjectAdapter)ModelState);
+
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
             await _context.SaveChangesAsync();
 
             return NoContent();
         }
+        #endregion
 
+        #region Delete
+        // DELETE: api/v1/Sources/5
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteSource(Guid id)
+        {
+            var source = await _context.Sources.FindAsync(id);
+            if (source == null)
+                return NotFound();
+
+            _context.Sources.Remove(source);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+        #endregion
+
+        #region Helpers
         private bool SourceExists(Guid id)
         {
-            return _context.Sources.Any(e => e.SourceId == id);
+            return _context.Sources.Any(s => s.Source_Id == id);
         }
+        #endregion
     }
 }

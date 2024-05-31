@@ -6,7 +6,7 @@ namespace HelixAPI.Model
     public class User
     {
         [Key]
-        public Guid UserId { get; set; }
+        public Guid User_Id { get; set; }
 
         [Required]
         [MaxLength(50)]

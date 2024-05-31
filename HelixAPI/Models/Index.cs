@@ -7,22 +7,22 @@ namespace HelixAPI.Model
     public class Index
     {
         [Key]
-        public Guid IndexId { get; set; }
+        public Guid Index_Id { get; set; }
 
         [Required]
-        public Guid EntityId { get; set; }
+        public required Guid Entity_Id { get; set; }
 
         [Required]
-        public Guid IndexedBy { get; set; }
+        public required Guid Indexed_By { get; set; }
+
+        [Required]
+        public required Guid Source_Id { get; set; }
 
         [Required]
         [MaxLength(255)]
         public required string Location { get; set; }
 
         [Required]
-        public Guid SourceId { get; set; }
-
-        [Required]
-        public Subject Subject { get; set; }
+        public required Subject Subject { get; set; }
     }
 }

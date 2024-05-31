@@ -7,10 +7,13 @@ namespace HelixAPI.Model
     public class Source
     {
         [Key]
-        public Guid SourceId { get; set; }
+        public Guid Source_Id { get; set; }
 
         [Required]
-        public DateTime PublicationDate { get; set; }
+        public required Guid Creator_Id { get; set; }
+
+        [Required]
+        public required DateTime Publication_Date { get; set; }
 
         [Required]
         [MaxLength(100)]
@@ -21,18 +24,15 @@ namespace HelixAPI.Model
         public required string Url { get; set; }
 
         [Required]
-        public Guid CreatorId { get; set; }
+        public required Branch Branch { get; set; }
 
         [Required]
-        public Branch Branch { get; set; }
+        public required ContentType Content_Type { get; set; }
 
         [Required]
-        public Content ContentType { get; set; }
+        public required Flag Flags { get; set; }
 
         [Required]
-        public Flag Flags { get; set; }
-
-        [Required]
-        public Format Format { get; set; }
+        public required Format Format { get; set; }
     }
 }
