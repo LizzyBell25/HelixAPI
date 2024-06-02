@@ -29,8 +29,7 @@ namespace HelixAPI.Model
         [Required]
         public required ContentType Content_Type { get; set; }
 
-        [Required]
-        public required Flag Flags { get; set; }
+        public Flag Flags { get; set; }
 
         [Required]
         public required Format Format { get; set; }

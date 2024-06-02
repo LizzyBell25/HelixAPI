@@ -98,6 +98,10 @@ namespace HelixAPI.Controllers
             if (id != entity.Entity_Id)
                 return BadRequest();
 
+            var existingEntity = await _context.Entities.FindAsync(id);
+            if (existingEntity != null)
+                _context.Entry(existingEntity).State = EntityState.Detached;
+
             _context.Entry(entity).State = EntityState.Modified;
 
             try
@@ -126,12 +130,25 @@ namespace HelixAPI.Controllers
             if (entity == null)
                 return NotFound();
 
-            patchDoc.ApplyTo(entity, (Microsoft.AspNetCore.JsonPatch.Adapters.IObjectAdapter)ModelState);
+            patchDoc.ApplyTo(entity, (error) =>
+            {
+                ModelState.TryAddModelError(error.AffectedObject.ToString(), error.ErrorMessage);
+            });
 
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (_context.Entities.Any(e => e.Entity_Id == id))
+                    throw;
+                else
+                    return NotFound();
+            }
 
             return NoContent();
         }

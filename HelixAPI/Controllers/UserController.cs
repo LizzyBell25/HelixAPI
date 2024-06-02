@@ -97,6 +97,10 @@ namespace HelixAPI.Controllers
             if (id != user.User_Id)
                 return BadRequest();
 
+            var existingUser = await _context.Users.FindAsync(id);
+            if (existingUser != null)
+                _context.Entry(existingUser).State = EntityState.Detached;
+
             _context.Entry(user).State = EntityState.Modified;
 
             try
@@ -125,12 +129,25 @@ namespace HelixAPI.Controllers
             if (user == null)
                 return NotFound();
 
-            patchDoc.ApplyTo(user, (Microsoft.AspNetCore.JsonPatch.Adapters.IObjectAdapter)ModelState);
+            patchDoc.ApplyTo(user, (error) =>
+            {
+                ModelState.TryAddModelError(error.AffectedObject.ToString(), error.ErrorMessage);
+            });
 
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (_context.Users.Any(u => u.User_Id == id))
+                    throw;
+                else
+                    return NotFound();
+            }
 
             return NoContent();
         }

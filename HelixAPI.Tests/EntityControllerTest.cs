@@ -1,266 +1,245 @@
-﻿using Microsoft.AspNetCore.Mvc.Testing;
+﻿using Xunit;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
-using Xunit;
-using HelixAPI;
+using HelixAPI.Controllers;
 using HelixAPI.Model;
 using HelixAPI.Data;
+using Microsoft.AspNetCore.JsonPatch;
+using System.Dynamic;
 
 namespace HelixAPI.Tests
 {
-    public class EntityControllerTests : IClassFixture<WebApplicationFactory<Startup>>, IDisposable
+    public class EntitiesControllerTests : IDisposable
     {
-        private readonly HttpClient _client;
-        private readonly JsonSerializerOptions _jsonSerializerOptions;
-        private readonly WebApplicationFactory<Startup> _factory;
+        private readonly DbContextOptions<HelixContext> _options;
 
-        public EntityControllerTests(WebApplicationFactory<Startup> factory)
+        public EntitiesControllerTests()
         {
-            _factory = factory.WithWebHostBuilder(builder =>
+            _options = new DbContextOptionsBuilder<HelixContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString()) // Use a unique database name for each test
+                .Options;
+
+            SeedDatabase();
+        }
+
+        private void SeedDatabase()
+        {
+            using var context = new HelixContext(_options);
+            var entitys = new List<Entity>
             {
-                builder.ConfigureServices(services =>
-                {
-                    // Remove the app's HelixContext registration.
-                    var descriptor = services.SingleOrDefault(
-                        d => d.ServiceType ==
-                             typeof(DbContextOptions<HelixContext>));
-
-                    if (descriptor != null)
-                    {
-                        services.Remove(descriptor);
-                    }
-
-                    // Add HelixContext using an in-memory database for testing.
-                    services.AddDbContext<HelixContext>(options =>
-                    {
-                        options.UseInMemoryDatabase("InMemoryDbForTesting");
-                    });
-
-                    // Build the service provider.
-                    var sp = services.BuildServiceProvider();
-
-                    // Create a scope to obtain a reference to the database
-                    // context (HelixContext).
-                    using (var scope = sp.CreateScope())
-                    {
-                        var scopedServices = scope.ServiceProvider;
-                        var db = scopedServices.GetRequiredService<HelixContext>();
-
-                        // Ensure the database is created.
-                        db.Database.EnsureCreated();
-                    }
-                });
-            });
-
-            _client = _factory.CreateClient();
-            _jsonSerializerOptions = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
+                GenerateEntity(Guid.NewGuid(), "Entity1"),
+                GenerateEntity(Guid.NewGuid(), "Entity2")
             };
-            _jsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+
+            context.Entities.AddRange(entitys);
+            context.SaveChanges();
         }
 
         public void Dispose()
         {
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<HelixContext>();
-                context.Entities.RemoveRange(context.Entities);
-                context.SaveChanges();
-            }
+            using var context = new HelixContext(_options);
+            context.Database.EnsureDeleted();
         }
 
         [Fact]
-        public async Task PostEntity_ShouldReturnCreatedEntity()
+        public async Task GetEntities_ReturnsAllEntities()
         {
             // Arrange
-            var newEntity = new Entity
-            {
-                Entity_Id = Guid.NewGuid(),
-                Name = "Thor",
-                Description = "God of Thunder",
-                Type = Catagory.God
-            };
-            var content = new StringContent(JsonSerializer.Serialize(newEntity, _jsonSerializerOptions), Encoding.UTF8, "application/json");
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
 
             // Act
-            var response = await _client.PostAsync("/api/entities", content);
+            var result = await controller.GetEntities();
 
             // Assert
-            response.EnsureSuccessStatusCode();
-            var responseString = await response.Content.ReadAsStringAsync();
-            var returnedEntity = JsonSerializer.Deserialize<Entity>(responseString, _jsonSerializerOptions);
-            Assert.Equal(newEntity.Name, returnedEntity.Name);
-            Assert.Equal(newEntity.Type, returnedEntity.Type);
+            var actionResult = Assert.IsType<ActionResult<IEnumerable<Entity>>>(result);
+            var returnValue = Assert.IsType<List<Entity>>(actionResult.Value);
+            Assert.Equal(2, returnValue.Count);
         }
 
         [Fact]
-        public async Task GetEntities_ShouldReturnAllEntities()
+        public async Task GetEntity_ReturnsEntity()
         {
             // Arrange
-            var entities = new[]
-            {
-                new Entity
-                {
-                    Entity_Id = Guid.NewGuid(),
-                    Name = "Odin",
-                    Description = "Allfather",
-                    Type = Catagory.God
-                },
-                new Entity
-                {
-                    Entity_Id = Guid.NewGuid(),
-                    Name = "Thor",
-                    Description = "God of Thunder",
-                    Type = Catagory.God
-                },
-                new Entity
-                {
-                    Entity_Id = Guid.NewGuid(),
-                    Name = "Freya",
-                    Description = "Goddess of Love",
-                    Type = Catagory.God
-                }
-            };
-
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<HelixContext>();
-                context.Entities.AddRange(entities);
-                context.SaveChanges();
-            }
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            var id = context.Entities.First().Entity_Id;
 
             // Act
-            var response = await _client.GetAsync("/api/entities");
-
-            // Log the response content for debugging
-            var responseString = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Response content: {responseString}");
+            var result = await controller.GetEntity(id);
 
             // Assert
-            response.EnsureSuccessStatusCode();
-            var returnedEntities = JsonSerializer.Deserialize<List<Entity>>(responseString, _jsonSerializerOptions);
-            Assert.NotNull(returnedEntities);
-            Assert.Equal(3, returnedEntities.Count);
-
-            foreach (var entity in entities)
-            {
-                Assert.Contains(returnedEntities, e => e.Entity_Id == entity.Entity_Id && e.Name == entity.Name);
-            }
-        }
-        
-        [Fact]
-        public async Task GetEntity_ShouldReturnEntity()
-        {
-            // Arrange
-            var newEntity = new Entity
-            {
-                Entity_Id = Guid.NewGuid(),
-                Name = "Odin",
-                Description = "Allfather",
-                Type = Catagory.God
-            };
-
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<HelixContext>();
-                context.Entities.Add(newEntity);
-                context.SaveChanges();
-            }
-
-            // Act
-            var response = await _client.GetAsync($"/api/entities/{newEntity.Entity_Id}");
-
-            // Assert
-            response.EnsureSuccessStatusCode();
-            var responseString = await response.Content.ReadAsStringAsync();
-            var returnedEntity = JsonSerializer.Deserialize<Entity>(responseString, _jsonSerializerOptions);
-            Assert.Equal(newEntity.Name, returnedEntity.Name);
-            Assert.Equal(newEntity.Type, returnedEntity.Type);
+            var actionResult = Assert.IsType<ActionResult<Entity>>(result);
+            var returnValue = Assert.IsType<Entity>(actionResult.Value);
+            Assert.Equal(id, returnValue.Entity_Id);
         }
 
         [Fact]
-        public async Task PutEntity_ShouldUpdateEntity()
+        public async Task GetEntity_ReturnsNotFound()
         {
             // Arrange
-            var newEntity = new Entity
-            {
-                Entity_Id = Guid.NewGuid(),
-                Name = "Loki",
-                Description = "Trickster",
-                Type = Catagory.God
-            };
-
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<HelixContext>();
-                context.Entities.Add(newEntity);
-                context.SaveChanges();
-            }
-
-            var updatedEntity = new Entity
-            {
-                Entity_Id = newEntity.Entity_Id,
-                Name = "Loki",
-                Description = "God of Mischief",
-                Type = Catagory.God
-            };
-
-            var content = new StringContent(JsonSerializer.Serialize(updatedEntity, _jsonSerializerOptions), Encoding.UTF8, "application/json");
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            var id = Guid.NewGuid();
 
             // Act
-            var response = await _client.PutAsync($"/api/entities/{newEntity.Entity_Id}", content);
-
-            // Log the response content for debugging
-            var responseString = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Response content: {responseString}");
+            var result = await controller.GetEntity(id);
 
             // Assert
-            response.EnsureSuccessStatusCode();
-            var returnedEntity = JsonSerializer.Deserialize<Entity>(responseString, _jsonSerializerOptions);
-            Assert.Equal(updatedEntity.Description, returnedEntity.Description);
+            Assert.IsType<NotFoundResult>(result.Result);
         }
 
         [Fact]
-        public async Task DeleteEntity_ShouldRemoveEntity()
+        public async Task PostEntity_CreatesEntity()
         {
             // Arrange
-            var newEntity = new Entity
-            {
-                Entity_Id = Guid.NewGuid(),
-                Name = "Freya",
-                Description = "Goddess of Love",
-                Type = Catagory.God
-            };
-
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<HelixContext>();
-                context.Entities.Add(newEntity);
-                context.SaveChanges();
-            }
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            var entity = GenerateEntity(Guid.NewGuid(), "Entity3");
 
             // Act
-            var response = await _client.DeleteAsync($"/api/entities/{newEntity.Entity_Id}");
+            var result = await controller.PostEntity(entity);
 
             // Assert
-            response.EnsureSuccessStatusCode();
+            var actionResult = Assert.IsType<ActionResult<Entity>>(result);
+            var createdAtActionResult = Assert.IsType<CreatedAtActionResult>(actionResult.Result);
+            var returnValue = Assert.IsType<Entity>(createdAtActionResult.Value);
+            Assert.Equal(entity.Entity_Id, returnValue.Entity_Id);
+        }
 
-            using (var scope = _factory.Services.CreateScope())
+        [Fact]
+        public async Task PutEntity_UpdatesEntity()
+        {
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            var id = context.Entities.First().Entity_Id;
+            var entity = GenerateEntity(id, "UpdatedEntity");
+
+            // Act
+            var result = await controller.PutEntity(id, entity);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result);
+
+            var updatedEntity = await context.Entities.FindAsync(id);
+            Assert.Equal("UpdatedEntity", updatedEntity.Name);
+        }
+
+        [Fact]
+        public async Task PutEntity_ReturnsBadRequest()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            var id = Guid.NewGuid();
+            var entity = GenerateEntity(Guid.NewGuid(), "Entity1");
+
+            // Act
+            var result = await controller.PutEntity(id, entity);
+
+            // Assert
+            Assert.IsType<BadRequestResult>(result);
+        }
+
+        [Fact]
+        public async Task DeleteEntity_DeletesEntity()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            var id = context.Entities.First().Entity_Id;
+
+            // Act
+            var result = await controller.DeleteEntity(id);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result);
+            var deletedEntity = await context.Entities.FindAsync(id);
+            Assert.Null(deletedEntity);
+        }
+
+        [Fact]
+        public async Task DeleteEntity_ReturnsNotFound()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            var id = Guid.NewGuid();
+
+            // Act
+            var result = await controller.DeleteEntity(id);
+
+            // Assert
+            Assert.IsType<NotFoundResult>(result);
+        }
+
+        [Fact]
+        public async Task PatchEntity_UpdatesEntity()
+        {
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            var id = context.Entities.First().Entity_Id;
+            var patchDoc = new JsonPatchDocument<Entity>();
+            patchDoc.Replace(e => e.Name, "UpdatedPublisher");
+
+            // Act
+            var result = await controller.PatchEntity(id, patchDoc);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result);
+
+            var updatedEntity = await context.Entities.FindAsync(id);
+            Assert.Equal("UpdatedPublisher", updatedEntity.Name);
+        }
+
+        [Fact]
+        public async Task QueryEntities_ReturnsFilteredAndPagedResults()
+        {
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+
+            // Act
+            var result = await controller.QueryEntities(type: Catagory.God, size: 1, offset: 0, sortBy: "Name", sortOrder: "desc");
+
+            // Assert
+            var actionResult = Assert.IsType<OkObjectResult>(result);
+            var returnValue = Assert.IsAssignableFrom<List<Entity>>(actionResult.Value);
+
+            Assert.Single(returnValue);
+            Assert.Equal("Entity2", returnValue.First().Name);
+        }
+
+        [Fact]
+        public async Task QueryEntities_ReturnsSelectedFields()
+        {
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+
+            // Act
+            var result = await controller.QueryEntities(fields: "Name");
+
+            // Assert
+            var actionResult = Assert.IsType<OkObjectResult>(result);
+            var returnValue = Assert.IsAssignableFrom<IEnumerable<ExpandoObject>>(actionResult.Value);
+
+            foreach (var item in returnValue)
             {
-                var context = scope.ServiceProvider.GetRequiredService<HelixContext>();
-                var deletedEntity = await context.Entities.FindAsync(newEntity.Entity_Id);
-                Assert.Null(deletedEntity);
+                var dict = Assert.IsType<ExpandoObject>(item);
+                Assert.Contains("Name", dict);
+                Assert.DoesNotContain("Type", dict);
             }
         }
 
+        private static Entity GenerateEntity(Guid id, string publisher)
+        {
+            var entity = new Entity
+            {
+                Entity_Id = id,
+                Name = publisher,
+                Type = Catagory.God
+            };
+
+            return entity;
+        }
     }
 }

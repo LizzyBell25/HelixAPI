@@ -97,6 +97,10 @@ namespace HelixAPI.Controllers
             if (id != relationship.Relationship_Id)
                 return BadRequest();
 
+            var existingRelationship = await _context.EntityRelationships.FindAsync(id);
+            if (existingRelationship != null)
+                _context.Entry(existingRelationship).State = EntityState.Detached;
+
             _context.Entry(relationship).State = EntityState.Modified;
 
             try
@@ -125,12 +129,25 @@ namespace HelixAPI.Controllers
             if (relationship == null)
                 return NotFound();
 
-            patchDoc.ApplyTo(relationship, (Microsoft.AspNetCore.JsonPatch.Adapters.IObjectAdapter)ModelState);
+            patchDoc.ApplyTo(relationship, (error) =>
+            {
+                ModelState.TryAddModelError(error.AffectedObject.ToString(), error.ErrorMessage);
+            });
 
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (_context.EntityRelationships.Any(r => r.Relationship_Id == id))
+                    throw;
+                else
+                    return NotFound();
+            }
 
             return NoContent();
         }

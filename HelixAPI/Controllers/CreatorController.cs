@@ -18,7 +18,7 @@ namespace HelixAPI.Controllers
         #region Create
         // POST: api/v1/Creators
         [HttpPost]
-        public async Task<ActionResult<Entity>> PostCreator([FromBody] Creator creator)
+        public async Task<ActionResult<Creator>> PostCreator([FromBody] Creator creator)
         {
             _context.Creators.Add(creator);
             await _context.SaveChangesAsync();
@@ -99,6 +99,10 @@ namespace HelixAPI.Controllers
             if (id != creator.Creator_Id)
                 return BadRequest();
 
+            var existingCreator = await _context.Creators.FindAsync(id);
+            if (existingCreator != null)
+                _context.Entry(existingCreator).State = EntityState.Detached;
+
             _context.Entry(creator).State = EntityState.Modified;
 
             try
@@ -127,12 +131,25 @@ namespace HelixAPI.Controllers
             if (creator == null)
                 return NotFound();
 
-            patchDoc.ApplyTo(creator, (Microsoft.AspNetCore.JsonPatch.Adapters.IObjectAdapter)ModelState);
+            patchDoc.ApplyTo(creator, (error) =>
+            {
+                ModelState.TryAddModelError(error.AffectedObject.ToString(), error.ErrorMessage);
+            });
 
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (_context.Creators.Any(c => c.Creator_Id == id))
+                    throw;
+                else
+                    return NotFound();
+            }
 
             return NoContent();
         }

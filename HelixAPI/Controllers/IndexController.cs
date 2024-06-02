@@ -107,6 +107,10 @@ namespace HelixAPI.Controllers
             if (id != index.Index_Id)
                 return BadRequest();
 
+            var existingIndex = await _context.Indexes.FindAsync(id);
+            if (existingIndex != null)
+                _context.Entry(existingIndex).State = EntityState.Detached;
+
             _context.Entry(index).State = EntityState.Modified;
 
             try
@@ -135,12 +139,25 @@ namespace HelixAPI.Controllers
             if (index == null)
                 return NotFound();
 
-            patchDoc.ApplyTo(index, (Microsoft.AspNetCore.JsonPatch.Adapters.IObjectAdapter)ModelState);
+            patchDoc.ApplyTo(index, (error) =>
+            {
+                ModelState.TryAddModelError(error.AffectedObject.ToString(), error.ErrorMessage);
+            });
 
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (_context.Indexes.Any(i => i.Index_Id == id))
+                    throw;
+                else
+                    return NotFound();
+            }
 
             return NoContent();
         }

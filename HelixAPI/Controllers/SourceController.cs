@@ -5,6 +5,7 @@ using HelixAPI.Data;
 using HelixAPI.Model;
 using HelixAPI.Helpers;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace HelixAPI.Controllers
 {
@@ -123,6 +124,10 @@ namespace HelixAPI.Controllers
             if (id != source.Source_Id)
                 return BadRequest();
 
+            var existingSource = await _context.Sources.FindAsync(id);
+            if (existingSource != null)
+                _context.Entry(existingSource).State = EntityState.Detached;
+
             _context.Entry(source).State = EntityState.Modified;
 
             try
@@ -151,15 +156,29 @@ namespace HelixAPI.Controllers
             if (source == null)
                 return NotFound();
 
-            patchDoc.ApplyTo(source, (Microsoft.AspNetCore.JsonPatch.Adapters.IObjectAdapter)ModelState);
+            patchDoc.ApplyTo(source, (error) =>
+            {
+                ModelState.TryAddModelError(error.AffectedObject.ToString(), error.ErrorMessage);
+            });
 
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (_context.Sources.Any(s => s.Source_Id == id))
+                    throw;
+                else
+                    return NotFound();
+            }
 
             return NoContent();
         }
+
         #endregion
 
         #region Delete
