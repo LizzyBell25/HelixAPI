@@ -1,12 +1,14 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.JsonPatch;
-using HelixAPI.Data;
+using HelixAPI.Contexts;
 using HelixAPI.Model;
 using HelixAPI.Helpers;
+using Microsoft.AspNetCore.Authorization;
 
 namespace HelixAPI.Controllers
 {
+    [Authorize]
     [Route("api/v1/[controller]")]
     [ApiController]
     public class EntityRelationshipsController(HelixContext context) : ControllerBase

@@ -1,6 +1,5 @@
 ﻿using System.Dynamic;
 using System.Reflection;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace HelixAPI.Helpers
 {

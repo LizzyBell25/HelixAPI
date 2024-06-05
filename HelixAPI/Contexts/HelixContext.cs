@@ -1,12 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using HelixAPI.Model;
 
-namespace HelixAPI.Data
+namespace HelixAPI.Contexts
 {
-    public class HelixContext : DbContext
+    public class HelixContext(DbContextOptions<HelixContext> options) : DbContext(options)
     {
-        public HelixContext(DbContextOptions<HelixContext> options) : base(options) { }
-
         public virtual DbSet<Entity> Entities { get; set; }
         public virtual DbSet<User> Users { get; set; }
         public virtual DbSet<Creator> Creators { get; set; }

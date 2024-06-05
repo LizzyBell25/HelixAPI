@@ -1,6 +1,4 @@
-﻿using HelixAPI.Model;
-using Microsoft.EntityFrameworkCore;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace HelixAPI.Model
 {

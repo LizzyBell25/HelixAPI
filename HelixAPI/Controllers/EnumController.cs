@@ -1,11 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using HelixAPI.Model;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using Microsoft.AspNetCore.Authorization;
 
 namespace HelixAPI.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("[controller]")]
     public class EnumsController : ControllerBase
