@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HelixAPI.Controllers;
-using HelixAPI.Model;
+using HelixAPI.Models;
 using HelixAPI.Contexts;
 using Microsoft.AspNetCore.JsonPatch;
 using System.Dynamic;
@@ -200,8 +200,21 @@ namespace HelixAPI.Tests
             using var context = new HelixContext(_options);
             var controller = new EntityRelationshipsController(context);
 
+            var queryDto = new QueryDto("Relationship_Id")
+            {
+                Filters =
+                [
+                    new() { Property = "Relationship_Type", Operation = "equals", Value = "Enemy" }
+                ],
+                Size = 1,
+                Offset = 0,
+                SortBy = "Relationship_Type",
+                SortOrder = "desc",
+                Fields = null
+            };
+
             // Act
-            var result = await controller.QueryRelationships(relationship_type: RelationshipType.Enemy, size: 1, offset: 0, sortBy: "Relationship_Type", sortOrder: "desc");
+            var result = await controller.QueryRelationships(queryDto);
 
             // Assert
             var actionResult = Assert.IsType<OkObjectResult>(result);
@@ -217,8 +230,18 @@ namespace HelixAPI.Tests
             using var context = new HelixContext(_options);
             var controller = new EntityRelationshipsController(context);
 
+            var queryDto = new QueryDto("Relationship_Id")
+            {
+                Filters = [],
+                Size = 100,
+                Offset = 0,
+                SortBy = "Relationship_Type",
+                SortOrder = "asc",
+                Fields = "Relationship_Type"
+            };
+
             // Act
-            var result = await controller.QueryRelationships(fields: "Relationship_Type");
+            var result = await controller.QueryRelationships(queryDto);
 
             // Assert
             var actionResult = Assert.IsType<OkObjectResult>(result);

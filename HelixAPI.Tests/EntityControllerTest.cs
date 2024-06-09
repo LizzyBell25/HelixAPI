@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HelixAPI.Controllers;
-using HelixAPI.Model;
+using HelixAPI.Models;
 using HelixAPI.Contexts;
 using Microsoft.AspNetCore.JsonPatch;
 using System.Dynamic;
@@ -196,10 +196,23 @@ namespace HelixAPI.Tests
         public async Task QueryEntities_ReturnsFilteredAndPagedResults()
         {
             using var context = new HelixContext(_options);
-            var controller = new EntitiesController(context);
+            var controller = new EntitiesController(context); 
+            
+            var queryDto = new QueryDto("Entity_Id")
+            {
+                Filters =
+                [
+                    new() { Property = "Type", Operation = "equals", Value = "God" }
+                ],
+                Size = 1,
+                Offset = 0,
+                SortBy = "Name",
+                SortOrder = "desc",
+                Fields = null
+            };
 
             // Act
-            var result = await controller.QueryEntities(type: Catagory.God, size: 1, offset: 0, sortBy: "Name", sortOrder: "desc");
+            var result = await controller.QueryEntities(queryDto);
 
             // Assert
             var actionResult = Assert.IsType<OkObjectResult>(result);
@@ -215,8 +228,18 @@ namespace HelixAPI.Tests
             using var context = new HelixContext(_options);
             var controller = new EntitiesController(context);
 
+            var queryDto = new QueryDto("Entity_Id")
+            {
+                Filters = [],
+                Size = 100,
+                Offset = 0,
+                SortBy = "Name",
+                SortOrder = "asc",
+                Fields = "Name"
+            };
+
             // Act
-            var result = await controller.QueryEntities(fields: "Name");
+            var result = await controller.QueryEntities(queryDto);
 
             // Assert
             var actionResult = Assert.IsType<OkObjectResult>(result);

@@ -2,9 +2,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.JsonPatch;
 using HelixAPI.Contexts;
-using HelixAPI.Model;
+using HelixAPI.Models;
 using HelixAPI.Helpers;
 using Microsoft.AspNetCore.Authorization;
+using System.Linq.Dynamic.Core;
 
 namespace HelixAPI.Controllers
 {
@@ -44,50 +45,22 @@ namespace HelixAPI.Controllers
 
             return creator;
         }
+        #endregion
 
-        // GET: api/v1/Creators/query
-        [HttpGet("query")]
-        public async Task<IActionResult> QueryCreators(
-            [FromQuery] string? first_name = null,
-            [FromQuery] string? last_name = null,
-            [FromQuery] string? sort_name = null,
-            [FromQuery] int size = 100,
-            [FromQuery] int offset = 0,
-            [FromQuery] string sortBy = "",
-            [FromQuery] string sortOrder = "asc",
-            [FromQuery] string? fields = null)
+        #region Query
+        // POST: api/v1/Creators/query
+        [HttpPost("query")]
+        public async Task<IActionResult> QueryCreators([FromBody] QueryDto queryDto)
         {
-            var query = _context.Creators.AsQueryable();
-
-            if (!string.IsNullOrEmpty(first_name))
-                query = query.Where(c => c.First_Name.Contains(first_name));
-
-            if (!string.IsNullOrEmpty(last_name))
-                query = query.Where(c => c.Last_Name.Contains(last_name));
-
-            if (!string.IsNullOrEmpty(sort_name))
-                query = query.Where(c => c.Sort_Name.Contains(sort_name));
-
-            // Sorting
-            query = sortBy.ToLower() switch
-            {
-                "first_name" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(c => c.First_Name) : query.OrderBy(c => c.First_Name),
-                "last_name" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(c => c.Last_Name) : query.OrderBy(c => c.Last_Name),
-                "sort_name" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(c => c.Sort_Name) : query.OrderBy(c => c.Sort_Name),
-                _ => query.OrderBy(c => c.Creator_Id),
-            };
-            var creators = await query.Skip(offset).Take(size).ToListAsync();
+            var creators = await QueryHelpers.ProcessQueryFilters(queryDto, _context.Creators).ToListAsync();
 
             if (creators.Count == 0)
                 return NotFound();
 
-            if (string.IsNullOrEmpty(fields))
+            if (string.IsNullOrEmpty(queryDto.Fields))
                 return Ok(creators);
 
-            var selectedFields = fields.Split(',').Select(f => f.Trim()).ToList();
-            var response = creators.Select(c => ConvertionHelpers.CreateExpandoObject<Creator>(c, selectedFields));
-
-            return Ok(response);
+            return Ok(QueryHelpers.FilterFields(creators, queryDto));
         }
         #endregion
 

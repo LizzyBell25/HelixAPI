@@ -2,27 +2,57 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.JsonPatch;
 using HelixAPI.Contexts;
-using HelixAPI.Model;
+using HelixAPI.Models;
 using HelixAPI.Helpers;
 using Microsoft.AspNetCore.Authorization;
+using HelixAPI.Services;
+using System.Linq;
+using System.Linq.Dynamic.Core;
+using HelixAPI.Interfaces;
 
 namespace HelixAPI.Controllers
 {
     [Authorize]
     [Route("api/v1/[controller]")]
     [ApiController]
-    public class UsersController(HelixContext context) : ControllerBase
+    public class UsersController(HelixContext context, IUserService userService, ITokenService tokenService) : ControllerBase
     {
         private readonly HelixContext _context = context;
+        private readonly IUserService _userService = userService;
+        private readonly ITokenService _tokenService = tokenService;
 
         #region Create
-        // POST: api/v1/Users
-        [HttpPost]
-        public async Task<ActionResult<User>> PostUser([FromBody] User user)
+        // POST: api/v1/Users/register
+        [AllowAnonymous]
+        [HttpPost("register")]
+        public async Task<ActionResult<User>> RegisterUser([FromBody] User user)
         {
+            if (user == null)
+                return BadRequest();
+
+            user.Password = _userService.HashPassword(user.Password);
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
-            return CreatedAtAction("GetUser", new { id = user.User_Id }, user);
+
+            return CreatedAtAction(nameof(GetUser), new { id = user.User_Id }, user);
+        }
+
+        // POST: api/v1/Users/login
+        [AllowAnonymous]
+        [HttpPost("login")]
+        public async Task<IActionResult> LoginUser([FromBody] LoginDto loginDto)
+        {
+            var user = await _context.Users.SingleOrDefaultAsync(u => u.Username == loginDto.Username);
+            if (user == null || !_userService.VerifyPassword(user.Password, loginDto.Password))
+                return Unauthorized("Invalid email or password.");
+
+            var token = _tokenService.GenerateToken(user);
+            var tokenResponse = new Dictionary<string, string>
+            {
+                { "Token", token }
+            };
+
+            return Ok(tokenResponse);
         }
         #endregion
 
@@ -44,50 +74,22 @@ namespace HelixAPI.Controllers
 
             return user;
         }
+        #endregion
 
-        // GET: api/v1/Users/query
-        [HttpGet("query")]
-        public async Task<IActionResult> QueryUsers(
-            [FromQuery] string? username = null,
-            [FromQuery] string? email = null,
-            [FromQuery] bool? active = null,
-            [FromQuery] int size = 100,
-            [FromQuery] int offset = 0,
-            [FromQuery] string sortBy = "",
-            [FromQuery] string sortOrder = "asc",
-            [FromQuery] string? fields = null)
+        #region Query
+        // POST: api/v1/Users/query
+        [HttpPost("query")]
+        public async Task<IActionResult> QueryUsers([FromBody] QueryDto queryDto)
         {
-            var query = _context.Users.AsQueryable();
-
-            if (!string.IsNullOrEmpty(username))
-                query = query.Where(u => u.Username.Contains(username));
-
-            if (!string.IsNullOrEmpty(email))
-                query = query.Where(u => u.Email.Contains(email));
-
-            if (active != null)
-                query = query.Where(u => u.Active == active);
-
-            // Sorting
-            query = sortBy.ToLower() switch
-            {
-                "username" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(u => u.Username) : query.OrderBy(u => u.Username),
-                "email" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(u => u.Email) : query.OrderBy(u => u.Email),
-                "active" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(u => u.Active) : query.OrderBy(u => u.Active),
-                _ => query.OrderBy(u => u.User_Id),
-            };
-            var users = await query.Skip(offset).Take(size).ToListAsync();
+            var users = await QueryHelpers.ProcessQueryFilters(queryDto, _context.Users).ToListAsync();
 
             if (users.Count == 0)
                 return NotFound();
 
-            if (string.IsNullOrEmpty(fields))
+            if (string.IsNullOrEmpty(queryDto.Fields))
                 return Ok(users);
 
-            var selectedFields = fields.Split(',').Select(f => f.Trim()).ToList();
-            var response = users.Select(u => ConvertionHelpers.CreateExpandoObject(u, selectedFields));
-
-            return Ok(response);
+            return Ok(QueryHelpers.FilterFields(users, queryDto));
         }
         #endregion
 

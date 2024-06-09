@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HelixAPI.Controllers;
-using HelixAPI.Model;
+using HelixAPI.Models;
 using HelixAPI.Contexts;
 using Microsoft.AspNetCore.JsonPatch;
 using System.Dynamic;
@@ -25,7 +25,7 @@ namespace HelixAPI.Tests
         private void SeedDatabase()
         {
             using var context = new HelixContext(_options);
-            var indexs = new List<Model.Index>
+            var indexs = new List<Models.Index>
             {
                 GenerateIndex(Guid.NewGuid(), Guid.NewGuid(), Subject.Jotun),
                 GenerateIndex(Guid.NewGuid(), Guid.NewGuid(), Subject.Jotun)
@@ -52,8 +52,8 @@ namespace HelixAPI.Tests
             var result = await controller.GetIndexes();
 
             // Assert
-            var actionResult = Assert.IsType<ActionResult<IEnumerable<Model.Index>>>(result);
-            var returnValue = Assert.IsType<List<Model.Index>>(actionResult.Value);
+            var actionResult = Assert.IsType<ActionResult<IEnumerable<Models.Index>>>(result);
+            var returnValue = Assert.IsType<List<Models.Index>>(actionResult.Value);
             Assert.Equal(2, returnValue.Count);
         }
 
@@ -69,9 +69,9 @@ namespace HelixAPI.Tests
             var result = await controller.GetIndex(id);
 
             // Assert
-            var actionResult = Assert.IsType<ActionResult<Model.Index>>(result);
-            var returnValue = Assert.IsType<Model.Index>(actionResult.Value);
-            Assert.Equal(id, returnValue.Index_Id);
+            var ActionResult = Assert.IsType<ActionResult<Models.Index>>(result);
+            var ReturnValue = Assert.IsType<Models.Index>(ActionResult.Value);
+            Assert.Equal(id, ReturnValue.Index_Id);
         }
 
         [Fact]
@@ -101,9 +101,9 @@ namespace HelixAPI.Tests
             var result = await controller.PostIndex(index);
 
             // Assert
-            var actionResult = Assert.IsType<ActionResult<Model.Index>>(result);
+            var actionResult = Assert.IsType<ActionResult<Models.Index>>(result);
             var createdAtActionResult = Assert.IsType<CreatedAtActionResult>(actionResult.Result);
-            var returnValue = Assert.IsType<Model.Index>(createdAtActionResult.Value);
+            var returnValue = Assert.IsType<Models.Index>(createdAtActionResult.Value);
             Assert.Equal(index.Index_Id, returnValue.Index_Id);
         }
 
@@ -179,7 +179,7 @@ namespace HelixAPI.Tests
             using var context = new HelixContext(_options);
             var controller = new IndexesController(context);
             var id = context.Indexes.First().Index_Id;
-            var patchDoc = new JsonPatchDocument<Model.Index>();
+            var patchDoc = new JsonPatchDocument<Models.Index>();
             patchDoc.Replace(c => c.Subject, Subject.Magic);
 
             // Act
@@ -198,12 +198,25 @@ namespace HelixAPI.Tests
             using var context = new HelixContext(_options);
             var controller = new IndexesController(context);
 
+            var queryDto = new QueryDto("Index_ID")
+            {
+                Filters =
+                [
+                    new() { Property = "Subject", Operation = "equals", Value = "Jotun" }
+                ],
+                Size = 1,
+                Offset = 0,
+                SortBy = "Index_ID",
+                SortOrder = "desc",
+                Fields = null
+            };
+
             // Act
-            var result = await controller.QueryIndexes(subject: Subject.Jotun, size: 1, offset: 0, sortBy: "Subject", sortOrder: "desc");
+            var result = await controller.QueryIndexes(queryDto);
 
             // Assert
             var actionResult = Assert.IsType<OkObjectResult>(result);
-            var returnValue = Assert.IsAssignableFrom<List<Model.Index>>(actionResult.Value);
+            var returnValue = Assert.IsAssignableFrom<List<Models.Index>>(actionResult.Value);
 
             Assert.Single(returnValue);
             Assert.Equal(Subject.Jotun, returnValue.First().Subject);
@@ -215,8 +228,18 @@ namespace HelixAPI.Tests
             using var context = new HelixContext(_options);
             var controller = new IndexesController(context);
 
+            var queryDto = new QueryDto("Index_ID")
+            {
+                Filters = [],
+                Size = 100,
+                Offset = 0,
+                SortBy = "Subject",
+                SortOrder = "asc",
+                Fields = "Subject"
+            };
+
             // Act
-            var result = await controller.QueryIndexes(fields: "Subject");
+            var result = await controller.QueryIndexes(queryDto);
 
             // Assert
             var actionResult = Assert.IsType<OkObjectResult>(result);
@@ -230,9 +253,9 @@ namespace HelixAPI.Tests
             }
         }
 
-        private static Model.Index GenerateIndex(Guid id, Guid Entity, Subject subject)
+        private static Models.Index GenerateIndex(Guid id, Guid Entity, Subject subject)
         {
-            var index = new Model.Index
+            var index = new Models.Index
             {
                 Index_Id = id,
                 Entity_Id = Entity,

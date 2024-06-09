@@ -2,9 +2,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.JsonPatch;
 using HelixAPI.Contexts;
-using HelixAPI.Model;
+using HelixAPI.Models;
 using HelixAPI.Helpers;
 using Microsoft.AspNetCore.Authorization;
+using System.Linq.Dynamic.Core;
 
 namespace HelixAPI.Controllers
 {
@@ -18,7 +19,7 @@ namespace HelixAPI.Controllers
         #region Create
         // POST: api/v1/Indexes
         [HttpPost]
-        public async Task<ActionResult<Model.Index>> PostIndex([FromBody] Model.Index index)
+        public async Task<ActionResult<Models.Index>> PostIndex([FromBody] Models.Index index)
         {
             _context.Indexes.Add(index);
             await _context.SaveChangesAsync();
@@ -29,14 +30,14 @@ namespace HelixAPI.Controllers
         #region Read
         // GET: api/v1/Indexes
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Model.Index>>> GetIndexes()
+        public async Task<ActionResult<IEnumerable<Models.Index>>> GetIndexes()
         {
             return await _context.Indexes.ToListAsync();
         }
 
         // GET: api/v1/Indexes/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Model.Index>> GetIndex(Guid id)
+        public async Task<ActionResult<Models.Index>> GetIndex(Guid id)
         {
             var index = await _context.Indexes.FindAsync(id);
             if (index == null)
@@ -44,67 +45,29 @@ namespace HelixAPI.Controllers
 
             return index;
         }
+        #endregion
 
-        // GET: api/v1/Indexes/query
-        [HttpGet("query")]
-        public async Task<IActionResult> QueryIndexes(
-            [FromQuery] Guid? entity_id = null,
-            [FromQuery] Guid? indexed_by = null,
-            [FromQuery] Guid? source_id = null,
-            [FromQuery] string? location = null,
-            [FromQuery] Subject? subject = null,
-            [FromQuery] int size = 100,
-            [FromQuery] int offset = 0,
-            [FromQuery] string sortBy = "",
-            [FromQuery] string sortOrder = "asc",
-            [FromQuery] string? fields = null)
+        #region Query
+        // POST: api/v1/Indexes/query
+        [HttpPost("query")]
+        public async Task<IActionResult> QueryIndexes([FromBody] QueryDto queryDto)
         {
-            var query = _context.Indexes.AsQueryable();
-
-            if (entity_id != null)
-                query = query.Where(i => i.Entity_Id == entity_id);
-
-            if (indexed_by != null)
-                query = query.Where(i => i.Indexed_By == indexed_by);
-
-            if (source_id != null)
-                query = query.Where(i => i.Source_Id == source_id);
-
-            if (!string.IsNullOrEmpty(location))
-                query = query.Where(i => i.Location.Contains(location));
-
-            if (subject != null)
-                query = query.Where(i => i.Subject == subject);
-
-            // Sorting
-            query = sortBy.ToLower() switch
-            {
-                "entity_id" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(i => i.Entity_Id) : query.OrderBy(i => i.Entity_Id),
-                "indexed_by" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(i => i.Indexed_By) : query.OrderBy(i => i.Indexed_By),
-                "source_id" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(i => i.Source_Id) : query.OrderBy(i => i.Source_Id),
-                "location" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(i => i.Location) : query.OrderBy(i => i.Location),
-                "subject" => sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(i => i.Subject) : query.OrderBy(i => i.Subject),
-                _ => query.OrderBy(i => i.Entity_Id),
-            };
-            var indexes = await query.Skip(offset).Take(size).ToListAsync();
+            var indexes = await QueryHelpers.ProcessQueryFilters(queryDto, _context.Indexes).ToListAsync();
 
             if (indexes.Count == 0)
                 return NotFound();
 
-            if (string.IsNullOrEmpty(fields))
+            if (string.IsNullOrEmpty(queryDto.Fields))
                 return Ok(indexes);
 
-            var selectedFields = fields.Split(',').Select(f => f.Trim()).ToList();
-            var response = indexes.Select(i => ConvertionHelpers.CreateExpandoObject(i, selectedFields));
-
-            return Ok(response);
+            return Ok(QueryHelpers.FilterFields(indexes, queryDto));
         }
         #endregion
 
         #region Update
         // PUT: api/v1/Indexes/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutIndex(Guid id, [FromBody] Model.Index index)
+        public async Task<IActionResult> PutIndex(Guid id, [FromBody] Models.Index index)
         {
             if (id != index.Index_Id)
                 return BadRequest();
@@ -132,7 +95,7 @@ namespace HelixAPI.Controllers
 
         // PATCH: api/v1/Indexes/5
         [HttpPatch("{id}")]
-        public async Task<IActionResult> PatchIndex(Guid id, [FromBody] JsonPatchDocument<Model.Index> patchDoc)
+        public async Task<IActionResult> PatchIndex(Guid id, [FromBody] JsonPatchDocument<Models.Index> patchDoc)
         {
             if (patchDoc == null)
                 return BadRequest();

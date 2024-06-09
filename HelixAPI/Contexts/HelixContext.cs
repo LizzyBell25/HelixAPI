@@ -1,5 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using HelixAPI.Model;
+using HelixAPI.Models;
 
 namespace HelixAPI.Contexts
 {
@@ -9,7 +9,7 @@ namespace HelixAPI.Contexts
         public virtual DbSet<User> Users { get; set; }
         public virtual DbSet<Creator> Creators { get; set; }
         public virtual DbSet<Source> Sources { get; set; }
-        public virtual DbSet<Model.Index> Indexes { get; set; }
+        public virtual DbSet<Models.Index> Indexes { get; set; }
         public virtual DbSet<EntityRelationship> EntityRelationships { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -18,7 +18,7 @@ namespace HelixAPI.Contexts
             modelBuilder.Entity<User>().ToTable("Users");
             modelBuilder.Entity<Creator>().ToTable("Creators");
             modelBuilder.Entity<Source>().ToTable("Sources");
-            modelBuilder.Entity<HelixAPI.Model.Index>().ToTable("Indexes");
+            modelBuilder.Entity<Models.Index>().ToTable("Indexes");
             modelBuilder.Entity<EntityRelationship>().ToTable("Entity_Relationship");
 
             // Enums to string conversions
@@ -27,7 +27,7 @@ namespace HelixAPI.Contexts
             modelBuilder.Entity<Source>().Property(s => s.Content_Type).HasConversion<string>();
             modelBuilder.Entity<Source>().Property(s => s.Flags).HasConversion<string>();
             modelBuilder.Entity<Source>().Property(s => s.Format).HasConversion<string>();
-            modelBuilder.Entity<HelixAPI.Model.Index>().Property(i => i.Subject).HasConversion<string>();
+            modelBuilder.Entity<Models.Index>().Property(i => i.Subject).HasConversion<string>();
             modelBuilder.Entity<EntityRelationship>().Property(r => r.Relationship_Type).HasConversion<string>();
         }
     }

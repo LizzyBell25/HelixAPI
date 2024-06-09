@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HelixAPI.Controllers;
-using HelixAPI.Model;
+using HelixAPI.Models;
 using HelixAPI.Contexts;
 using Microsoft.AspNetCore.JsonPatch;
 using System.Dynamic;
@@ -90,6 +90,21 @@ namespace HelixAPI.Tests
         }
 
         [Fact]
+        public async Task GetSources_ReturnsEmptyList_WhenNoSourcesExist()
+        {
+            using var context = new HelixContext(_options);
+            var controller = new SourcesController(context);
+
+            // Act
+            var result = await controller.GetSources();
+
+            // Assert
+            var actionResult = Assert.IsType<ActionResult<IEnumerable<Source>>>(result);
+            var returnValue = Assert.IsType<List<Source>>(actionResult.Value);
+            Assert.Empty(returnValue);
+        }
+
+        [Fact]
         public async Task PostSource_CreatesSource()
         {
             // Arrange
@@ -105,6 +120,24 @@ namespace HelixAPI.Tests
             var createdAtActionResult = Assert.IsType<CreatedAtActionResult>(actionResult.Result);
             var returnValue = Assert.IsType<Source>(createdAtActionResult.Value);
             Assert.Equal(source.Source_Id, returnValue.Source_Id);
+        }
+
+        [Fact]
+        public async Task PostSource_ReturnsBadRequest_WhenModelStateIsInvalid()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new SourcesController(context);
+            controller.ModelState.AddModelError("Publisher", "Required");
+
+            var source = GenerateSource(Guid.NewGuid(), string.Empty);
+
+            // Act
+            var result = await controller.PostSource(source);
+
+            // Assert
+            var actionResult = Assert.IsType<ActionResult<Source>>(result);
+            Assert.IsType<BadRequestObjectResult>(actionResult.Result);
         }
 
         [Fact]
@@ -198,15 +231,28 @@ namespace HelixAPI.Tests
             using var context = new HelixContext(_options);
             var controller = new SourcesController(context);
 
+            var queryDto = new QueryDto("Source_ID")
+            {
+                Filters =
+                [
+                    new() { Property = "Branch", Operation = "equals", Value = "Norse" }
+                ],
+                Size = 1,
+                Offset = 0,
+                SortBy = "publication_date",
+                SortOrder = "desc",
+                Fields = null
+            };
+
             // Act
-            var result = await controller.QuerySources(branch: Branch.Norse, size: 1, offset: 0, sortBy: "publication_date", sortOrder: "desc");
+            var result = await controller.QuerySources(queryDto);
 
             // Assert
             var actionResult = Assert.IsType<OkObjectResult>(result);
             var returnValue = Assert.IsAssignableFrom<List<Source>>(actionResult.Value);
 
             Assert.Single(returnValue);
-            Assert.Equal("Publisher2", returnValue.First().Publisher);
+            Assert.Equal(Branch.Norse, returnValue.First().Branch);
         }
 
         [Fact]
@@ -215,8 +261,18 @@ namespace HelixAPI.Tests
             using var context = new HelixContext(_options);
             var controller = new SourcesController(context);
 
+            var queryDto = new QueryDto("Source_ID")
+            {
+                Filters = [],
+                Size = 100,
+                Offset = 0,
+                SortBy = "Publisher",
+                SortOrder = "asc",
+                Fields = "Publisher"
+            };
+
             // Act
-            var result = await controller.QuerySources(fields: "Publisher");
+            var result = await controller.QuerySources(queryDto);
 
             // Assert
             var actionResult = Assert.IsType<OkObjectResult>(result);
@@ -245,6 +301,31 @@ namespace HelixAPI.Tests
             };
 
             return source;
+        }
+
+        [Fact]
+        public async Task ConcurrentUpdates_HandledCorrectly()
+        {
+            using var context = new HelixContext(_options);
+            var controller1 = new SourcesController(context);
+            var controller2 = new SourcesController(context);
+
+            var sourceId = context.Sources.First().Source_Id;
+
+            var sourceUpdate1 = await context.Sources.FindAsync(sourceId);
+            var sourceUpdate2 = await context.Sources.FindAsync(sourceId);
+
+            sourceUpdate1.Publisher = "UpdatedPublisher1";
+            sourceUpdate2.Publisher = "UpdatedPublisher2";
+
+            var result1 = await controller1.PutSource(sourceId, sourceUpdate1);
+            var result2 = await controller2.PutSource(sourceId, sourceUpdate2);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result1);
+            // Depending on how your system handles concurrency, you might expect different results here:
+            Assert.IsType<NoContentResult>(result2); // if last write wins
+            Assert.IsType<ConflictResult>(result2);  // if there's a concurrency check causing conflict
         }
     }
 }

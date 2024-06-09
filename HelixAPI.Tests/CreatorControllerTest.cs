@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HelixAPI.Controllers;
-using HelixAPI.Model;
+using HelixAPI.Models;
 using HelixAPI.Contexts;
 using Microsoft.AspNetCore.JsonPatch;
 using System.Dynamic;
@@ -196,10 +196,23 @@ namespace HelixAPI.Tests
         public async Task QueryCreators_ReturnsFilteredAndPagedResults()
         {
             using var context = new HelixContext(_options);
-            var controller = new CreatorsController(context);
+            var controller = new CreatorsController(context); 
+            
+            var queryDto = new QueryDto("Creator_ID")
+            {
+                Filters =
+                [
+                    new() { Property = "Last_Name", Operation = "equals", Value = "Last1" }
+                ],
+                Size = 1,
+                Offset = 0,
+                SortBy = "Last_Name",
+                SortOrder = "desc",
+                Fields = null
+            };
 
             // Act
-            var result = await controller.QueryCreators(last_name: "Last1", size: 1, offset: 0, sortBy: "Last_Name", sortOrder: "desc");
+            var result = await controller.QueryCreators(queryDto);
 
             // Assert
             var actionResult = Assert.IsType<OkObjectResult>(result);
@@ -215,8 +228,18 @@ namespace HelixAPI.Tests
             using var context = new HelixContext(_options);
             var controller = new CreatorsController(context);
 
+            var queryDto = new QueryDto("Creator_ID")
+            {
+                Filters = [],
+                Size = 100,
+                Offset = 0,
+                SortBy = "First_Name",
+                SortOrder = "asc",
+                Fields = "First_Name"
+            };
+
             // Act
-            var result = await controller.QueryCreators(fields: "First_Name");
+            var result = await controller.QueryCreators(queryDto);
 
             // Assert
             var actionResult = Assert.IsType<OkObjectResult>(result);

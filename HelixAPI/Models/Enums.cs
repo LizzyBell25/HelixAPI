@@ -1,4 +1,4 @@
-﻿namespace HelixAPI.Model
+﻿namespace HelixAPI.Models
 {
     public enum Catagory
     {

@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace HelixAPI.Model
+namespace HelixAPI.Models
 {
     public class Entity
     {

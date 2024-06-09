@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace HelixAPI.Model
+namespace HelixAPI.Models
 {
     public class User
     {
@@ -21,5 +21,18 @@ namespace HelixAPI.Model
 
         [Required]
         public required bool Active { get; set; } = true;
+    }
+
+    public class RegistrationDto
+    {
+        public string Username { get; set; }
+        public string Password { get; set; }
+        public string Email { get; set; }
+    }
+
+    public class LoginDto
+    {
+        public string Username { get; set; }
+        public string Password { get; set; }
     }
 }

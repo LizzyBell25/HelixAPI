@@ -2,22 +2,39 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HelixAPI.Controllers;
-using HelixAPI.Model;
+using HelixAPI.Models;
 using HelixAPI.Contexts;
 using Microsoft.AspNetCore.JsonPatch;
 using System.Dynamic;
+using Moq;
+using HelixAPI.Services;
 
 namespace HelixAPI.Tests
 {
     public class UsersControllerTests : IDisposable
     {
         private readonly DbContextOptions<HelixContext> _options;
+        private readonly Mock<UserService> _userServiceMock;
+        private readonly Mock<TokenService> _tokenServiceMock;
 
         public UsersControllerTests()
         {
             _options = new DbContextOptionsBuilder<HelixContext>()
                 .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString()) // Use a unique database name for each test
                 .Options;
+
+            var context = new HelixContext(_options);
+
+            var jwtSettings = new JwtSettings
+            {
+                Key = "hnt03QCXbgYDpZyjYzitaY94CQsUiixK",
+                Issuer = "http://localhost",
+                Audience = "Heathen Education And Resource Treasury Test",
+                ExpiryMinutes = 5,
+            };
+
+            _userServiceMock = new Mock<UserService>(context);
+            _tokenServiceMock = new Mock<TokenService>(jwtSettings);
 
             SeedDatabase();
         }
@@ -46,7 +63,7 @@ namespace HelixAPI.Tests
         {
             // Arrange
             using var context = new HelixContext(_options);
-            var controller = new UsersController(context);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
 
             // Act
             var result = await controller.GetUsers();
@@ -62,7 +79,7 @@ namespace HelixAPI.Tests
         {
             // Arrange
             using var context = new HelixContext(_options);
-            var controller = new UsersController(context);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
             var id = context.Users.First().User_Id;
 
             // Act
@@ -79,7 +96,7 @@ namespace HelixAPI.Tests
         {
             // Arrange
             using var context = new HelixContext(_options);
-            var controller = new UsersController(context);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
             var id = Guid.NewGuid();
 
             // Act
@@ -90,15 +107,15 @@ namespace HelixAPI.Tests
         }
 
         [Fact]
-        public async Task PostUser_CreatesUser()
+        public async Task RegisterUser_CreatesUser()
         {
             // Arrange
             using var context = new HelixContext(_options);
-            var controller = new UsersController(context);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
             var user = GenerateUser(Guid.NewGuid(), "User3", true);
 
             // Act
-            var result = await controller.PostUser(user);
+            var result = await controller.RegisterUser(user);
 
             // Assert
             var actionResult = Assert.IsType<ActionResult<User>>(result);
@@ -108,10 +125,71 @@ namespace HelixAPI.Tests
         }
 
         [Fact]
+        public async Task Login_ReturnsToken_WhenCredentialsAreValid()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
+
+            var password = "testPassword";
+            var hashedPassword = _userServiceMock.Object.HashPassword(password);
+            var user = GenerateUser(Guid.NewGuid(), "User4", true);
+            user.Email = "user4@example.com";
+            user.Password = hashedPassword;
+
+            await context.Users.AddAsync(user);
+            await context.SaveChangesAsync();
+
+            var loginDto = new LoginDto
+            {
+                Username = user.Username,
+                Password = password
+            };
+
+            // Act
+            var result = await controller.LoginUser(loginDto);
+
+            // Assert
+            var actionResult = Assert.IsType<OkObjectResult>(result);
+            var returnValue = Assert.IsType<Dictionary<string, string>>(actionResult.Value);
+            Assert.True(returnValue.ContainsKey("Token"));
+            string token = returnValue["Token"];
+            Assert.NotEmpty(token);
+        }
+
+        [Fact]
+        public async Task Login_ReturnsUnauthorized_WhenCredentialsAreInvalid()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
+
+            var password = "testPassword";
+            var hashedPassword = _userServiceMock.Object.HashPassword(password);
+            var user = GenerateUser(Guid.NewGuid(), "User4", true);
+            user.Password = hashedPassword;
+
+            await context.Users.AddAsync(user);
+            await context.SaveChangesAsync();
+
+            var loginDto = new LoginDto
+            {
+                Username = user.Username,
+                Password = "wrongPassword"
+            };
+
+            // Act
+            var result = await controller.LoginUser(loginDto);
+
+            // Assert
+            Assert.IsType<UnauthorizedObjectResult>(result);
+        }
+
+        [Fact]
         public async Task PutUser_UpdatesUser()
         {
             using var context = new HelixContext(_options);
-            var controller = new UsersController(context);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
             var id = context.Users.First().User_Id;
             var user = GenerateUser(id, "User1", false);
 
@@ -130,7 +208,7 @@ namespace HelixAPI.Tests
         {
             // Arrange
             using var context = new HelixContext(_options);
-            var controller = new UsersController(context);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
             var id = Guid.NewGuid();
             var user = GenerateUser(Guid.NewGuid(), "User1", true);
 
@@ -146,7 +224,7 @@ namespace HelixAPI.Tests
         {
             // Arrange
             using var context = new HelixContext(_options);
-            var controller = new UsersController(context);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
             var id = context.Users.First().User_Id;
 
             // Act
@@ -163,7 +241,7 @@ namespace HelixAPI.Tests
         {
             // Arrange
             using var context = new HelixContext(_options);
-            var controller = new UsersController(context);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
             var id = Guid.NewGuid();
 
             // Act
@@ -177,7 +255,7 @@ namespace HelixAPI.Tests
         public async Task PatchUser_UpdatesUser()
         {
             using var context = new HelixContext(_options);
-            var controller = new UsersController(context);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
             var id = context.Users.First().User_Id;
             var patchDoc = new JsonPatchDocument<User>();
             patchDoc.Replace(u => u.Active, false);
@@ -196,10 +274,23 @@ namespace HelixAPI.Tests
         public async Task QueryUsers_ReturnsFilteredAndPagedResults()
         {
             using var context = new HelixContext(_options);
-            var controller = new UsersController(context);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
+
+            var queryDto = new QueryDto("User_ID")
+            {
+                Filters =
+                [
+                    new() { Property = "Active", Operation = "equals", Value = "true" }
+                ],
+                Size = 1,
+                Offset = 0,
+                SortBy = "Username",
+                SortOrder = "desc",
+                Fields = null
+            };
 
             // Act
-            var result = await controller.QueryUsers(active: true, size: 1, offset: 0, sortBy: "Username", sortOrder: "desc");
+            var result = await controller.QueryUsers(queryDto);
 
             // Assert
             var actionResult = Assert.IsType<OkObjectResult>(result);
@@ -213,10 +304,20 @@ namespace HelixAPI.Tests
         public async Task QueryUsers_ReturnsSelectedFields()
         {
             using var context = new HelixContext(_options);
-            var controller = new UsersController(context);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
+
+            var queryDto = new QueryDto("User_ID")
+            {
+                Filters = [],
+                Size = 100,
+                Offset = 0,
+                SortBy = "Username",
+                SortOrder = "asc",
+                Fields = "Username"
+            };
 
             // Act
-            var result = await controller.QueryUsers(fields: "Username");
+            var result = await controller.QueryUsers(queryDto);
 
             // Assert
             var actionResult = Assert.IsType<OkObjectResult>(result);

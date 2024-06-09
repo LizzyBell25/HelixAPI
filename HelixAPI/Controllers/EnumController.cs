@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using HelixAPI.Model;
+using HelixAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 
 namespace HelixAPI.Controllers
