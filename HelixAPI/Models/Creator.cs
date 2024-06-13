@@ -18,5 +18,8 @@ namespace HelixAPI.Models
         [Required]
         [MaxLength(100)]
         public required string Sort_Name { get; set; }
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; }  // Concurrency token
     }
 }

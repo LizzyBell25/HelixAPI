@@ -22,5 +22,8 @@ namespace HelixAPI.Models
 
         [Required]
         public required Subject Subject { get; set; }
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; }  // Concurrency token
     }
 }

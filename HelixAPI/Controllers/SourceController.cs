@@ -6,6 +6,7 @@ using HelixAPI.Models;
 using HelixAPI.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using System.Linq.Dynamic.Core;
+using HelixAPI.Models.ModelHelpers;
 
 namespace HelixAPI.Controllers
 {
@@ -21,6 +22,9 @@ namespace HelixAPI.Controllers
         [HttpPost]
         public async Task<ActionResult<Source>> PostSource([FromBody] Source source)
         {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
             _context.Sources.Add(source);
             await _context.SaveChangesAsync();
             return CreatedAtAction("GetSource", new { id = source.Source_Id }, source);
@@ -48,8 +52,8 @@ namespace HelixAPI.Controllers
         #endregion
 
         #region Query
-        // POST: api/v1/Sources/query
-        [HttpPost("query")]
+        // GET: api/v1/Sources/query
+        [HttpGet("query")]
         public async Task<IActionResult> QuerySources([FromBody] QueryDto queryDto)
         {
             var sources = await QueryHelpers.ProcessQueryFilters(queryDto, _context.Sources).ToListAsync();
@@ -69,6 +73,9 @@ namespace HelixAPI.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> PutSource(Guid id, [FromBody] Source source)
         {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
             if (id != source.Source_Id)
                 return BadRequest();
 
@@ -76,6 +83,10 @@ namespace HelixAPI.Controllers
             if (existingSource != null)
                 _context.Entry(existingSource).State = EntityState.Detached;
 
+            // Track original RowVersion
+            var originalRowVersion = source.RowVersion;
+
+            _context.Entry(source).OriginalValues["RowVersion"] = originalRowVersion;
             _context.Entry(source).State = EntityState.Modified;
 
             try
@@ -104,6 +115,10 @@ namespace HelixAPI.Controllers
             if (source == null)
                 return NotFound();
 
+            // Track original RowVersion
+            var originalRowVersion = source.RowVersion;
+
+            // Apply the patch
             patchDoc.ApplyTo(source, (error) =>
             {
                 ModelState.TryAddModelError(error.AffectedObject.ToString(), error.ErrorMessage);
@@ -111,6 +126,8 @@ namespace HelixAPI.Controllers
 
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
+
+            _context.Entry(source).Property("RowVersion").OriginalValue = originalRowVersion;
 
             try
             {

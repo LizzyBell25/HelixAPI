@@ -3,9 +3,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HelixAPI.Controllers;
 using HelixAPI.Models;
+using HelixAPI.Models.ModelHelpers;
 using HelixAPI.Contexts;
 using Microsoft.AspNetCore.JsonPatch;
 using System.Dynamic;
+using System;
+using Microsoft.Extensions.Options;
+using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities.Resources;
 
 namespace HelixAPI.Tests
 {
@@ -13,6 +17,7 @@ namespace HelixAPI.Tests
     {
         private readonly DbContextOptions<HelixContext> _options;
 
+        #region Helpers
         public SourcesControllerTests()
         {
             _options = new DbContextOptionsBuilder<HelixContext>()
@@ -35,12 +40,48 @@ namespace HelixAPI.Tests
             context.SaveChanges();
         }
 
+        private void SeedDatabase(DbContextOptions<HelixContext> options)
+        {
+            using var context = new HelixContext(options);
+            if (!context.Sources.Any())
+            {
+                var sources = new List<Source>
+                {
+                    GenerateSource(Guid.NewGuid(), "Publisher1"),
+                    GenerateSource(Guid.NewGuid(), "Publisher2"),
+                };
+
+                context.Sources.AddRange(sources);
+                context.SaveChanges();
+            }
+        }
+
         public void Dispose()
         {
             using var context = new HelixContext(_options);
             context.Database.EnsureDeleted();
         }
+        
+        private static Source GenerateSource(Guid id, string publisher)
+        {
+            var source = new Source
+            {
+                Source_Id = id,
+                Creator_Id = Guid.NewGuid(),
+                Publication_Date = DateTime.UtcNow,
+                Publisher = publisher,
+                Url = "test",
+                Branch = Branch.Norse,
+                Content_Type = ContentType.Reconstruction,
+                Format = Format.Ebook,
+                RowVersion = BitConverter.GetBytes(DateTime.UtcNow.Ticks)
+            };
 
+            return source;
+        }
+        #endregion
+
+        #region GET
         [Fact]
         public async Task GetSources_ReturnsAllSources()
         {
@@ -92,7 +133,11 @@ namespace HelixAPI.Tests
         [Fact]
         public async Task GetSources_ReturnsEmptyList_WhenNoSourcesExist()
         {
-            using var context = new HelixContext(_options);
+            var emptyDbContextOptions = new DbContextOptionsBuilder<HelixContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new HelixContext(emptyDbContextOptions);
             var controller = new SourcesController(context);
 
             // Act
@@ -103,128 +148,9 @@ namespace HelixAPI.Tests
             var returnValue = Assert.IsType<List<Source>>(actionResult.Value);
             Assert.Empty(returnValue);
         }
+        #endregion
 
-        [Fact]
-        public async Task PostSource_CreatesSource()
-        {
-            // Arrange
-            using var context = new HelixContext(_options);
-            var controller = new SourcesController(context);
-            var source = GenerateSource(Guid.NewGuid(), "Publisher3");
-
-            // Act
-            var result = await controller.PostSource(source);
-
-            // Assert
-            var actionResult = Assert.IsType<ActionResult<Source>>(result);
-            var createdAtActionResult = Assert.IsType<CreatedAtActionResult>(actionResult.Result);
-            var returnValue = Assert.IsType<Source>(createdAtActionResult.Value);
-            Assert.Equal(source.Source_Id, returnValue.Source_Id);
-        }
-
-        [Fact]
-        public async Task PostSource_ReturnsBadRequest_WhenModelStateIsInvalid()
-        {
-            // Arrange
-            using var context = new HelixContext(_options);
-            var controller = new SourcesController(context);
-            controller.ModelState.AddModelError("Publisher", "Required");
-
-            var source = GenerateSource(Guid.NewGuid(), string.Empty);
-
-            // Act
-            var result = await controller.PostSource(source);
-
-            // Assert
-            var actionResult = Assert.IsType<ActionResult<Source>>(result);
-            Assert.IsType<BadRequestObjectResult>(actionResult.Result);
-        }
-
-        [Fact]
-        public async Task PutSource_UpdatesSource()
-        {
-            using var context = new HelixContext(_options);
-            var controller = new SourcesController(context);
-            var id = context.Sources.First().Source_Id;
-            var source = GenerateSource(id, "UpdatedPublisher");
-
-            // Act
-            var result = await controller.PutSource(id, source);
-
-            // Assert
-            Assert.IsType<NoContentResult>(result);
-
-            var updatedSource = await context.Sources.FindAsync(id);
-            Assert.Equal("UpdatedPublisher", updatedSource.Publisher);
-        }
-
-        [Fact]
-        public async Task PutSource_ReturnsBadRequest()
-        {
-            // Arrange
-            using var context = new HelixContext(_options);
-            var controller = new SourcesController(context);
-            var id = Guid.NewGuid();
-            var source = GenerateSource(Guid.NewGuid(), "Publisher1");
-
-            // Act
-            var result = await controller.PutSource(id, source);
-
-            // Assert
-            Assert.IsType<BadRequestResult>(result);
-        }
-
-        [Fact]
-        public async Task DeleteSource_DeletesSource()
-        {
-            // Arrange
-            using var context = new HelixContext(_options);
-            var controller = new SourcesController(context);
-            var id = context.Sources.First().Source_Id;
-
-            // Act
-            var result = await controller.DeleteSource(id);
-
-            // Assert
-            Assert.IsType<NoContentResult>(result);
-            var deletedSource = await context.Sources.FindAsync(id);
-            Assert.Null(deletedSource);
-        }
-
-        [Fact]
-        public async Task DeleteSource_ReturnsNotFound()
-        {
-            // Arrange
-            using var context = new HelixContext(_options);
-            var controller = new SourcesController(context);
-            var id = Guid.NewGuid();
-
-            // Act
-            var result = await controller.DeleteSource(id);
-
-            // Assert
-            Assert.IsType<NotFoundResult>(result);
-        }
-
-        [Fact]
-        public async Task PatchSource_UpdatesSource()
-        {
-            using var context = new HelixContext(_options);
-            var controller = new SourcesController(context);
-            var id = context.Sources.First().Source_Id;
-            var patchDoc = new JsonPatchDocument<Source>();
-            patchDoc.Replace(s => s.Publisher, "UpdatedPublisher");
-
-            // Act
-            var result = await controller.PatchSource(id, patchDoc);
-
-            // Assert
-            Assert.IsType<NoContentResult>(result);
-
-            var updatedSource = await context.Sources.FindAsync(id);
-            Assert.Equal("UpdatedPublisher", updatedSource.Publisher);
-        }
-
+        #region Query
         [Fact]
         public async Task QuerySources_ReturnsFilteredAndPagedResults()
         {
@@ -285,47 +211,227 @@ namespace HelixAPI.Tests
                 Assert.DoesNotContain("Branch", dict);
             }
         }
+        #endregion
 
-        private static Source GenerateSource(Guid id, string publisher)
+        #region POST
+        [Fact]
+        public async Task PostSource_CreatesSource()
         {
-            var source = new Source
-            {
-                Source_Id = id,
-                Creator_Id = Guid.NewGuid(),
-                Publication_Date = DateTime.UtcNow,
-                Publisher = publisher,
-                Url = "test",
-                Branch = Branch.Norse,
-                Content_Type = ContentType.Reconstruction,
-                Format = Format.Ebook
-            };
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new SourcesController(context);
+            var source = GenerateSource(Guid.NewGuid(), "Publisher3");
 
-            return source;
+            // Act
+            var result = await controller.PostSource(source);
+
+            // Assert
+            var actionResult = Assert.IsType<ActionResult<Source>>(result);
+            var createdAtActionResult = Assert.IsType<CreatedAtActionResult>(actionResult.Result);
+            var returnValue = Assert.IsType<Source>(createdAtActionResult.Value);
+            Assert.Equal(source.Source_Id, returnValue.Source_Id);
         }
 
         [Fact]
-        public async Task ConcurrentUpdates_HandledCorrectly()
+        public async Task PostSource_ReturnsBadRequest_WhenModelStateIsInvalid()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new SourcesController(context);
+            controller.ModelState.AddModelError("Publisher", "Required");
+
+            var source = GenerateSource(Guid.NewGuid(), string.Empty);
+
+            // Act
+            var result = await controller.PostSource(source);
+
+            // Assert
+            var actionResult = Assert.IsType<ActionResult<Source>>(result);
+            Assert.IsType<BadRequestObjectResult>(actionResult.Result);
+        }
+        #endregion
+
+        #region PUT
+        [Fact]
+        public async Task PutSource_UpdatesSource()
+        {
+            // Arrange
+            var options = new DbContextOptionsBuilder<HelixContext>()
+                .UseInMemoryDatabase(databaseName: "TestDatabase")
+                .Options;
+
+            // Seed the database
+            SeedDatabase(options);
+
+            using var context = new HelixContext(options);
+            var controller = new SourcesController(context);
+            var sourceId = context.Sources.First().Source_Id;
+            var sourceToUpdate = await context.Sources.FindAsync(sourceId);
+
+            // Ensure the RowVersion is not causing conflicts
+            var originalRowVersion = sourceToUpdate.RowVersion;
+
+            sourceToUpdate.Publisher = "UpdatedPublisher";
+
+            // Act
+            var result = await controller.PutSource(sourceId, sourceToUpdate);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result);
+
+            var updatedSource = await context.Sources.FindAsync(sourceId);
+            Assert.Equal("UpdatedPublisher", updatedSource.Publisher);
+            Assert.NotEqual(originalRowVersion, updatedSource.RowVersion);
+        }
+
+        [Fact]
+        public async Task PutSource_ReturnsBadRequest()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new SourcesController(context);
+            var id = Guid.NewGuid();
+            var source = GenerateSource(Guid.NewGuid(), "Publisher1");
+
+            // Act
+            var result = await controller.PutSource(id, source);
+
+            // Assert
+            Assert.IsType<BadRequestResult>(result);
+        }
+        #endregion
+
+        #region PATCH
+        [Fact]
+        public async Task PatchSource_UpdatesSource()
         {
             using var context = new HelixContext(_options);
-            var controller1 = new SourcesController(context);
-            var controller2 = new SourcesController(context);
+            var controller = new SourcesController(context);
+            var id = context.Sources.First().Source_Id;
+            var patchDoc = new JsonPatchDocument<Source>();
+            patchDoc.Replace(s => s.Publisher, "UpdatedPublisher");
 
-            var sourceId = context.Sources.First().Source_Id;
+            // Act
+            var result = await controller.PatchSource(id, patchDoc);
 
-            var sourceUpdate1 = await context.Sources.FindAsync(sourceId);
-            var sourceUpdate2 = await context.Sources.FindAsync(sourceId);
+            // Assert
+            Assert.IsType<NoContentResult>(result);
 
+            var updatedSource = await context.Sources.FindAsync(id);
+            Assert.Equal("UpdatedPublisher", updatedSource?.Publisher);
+        }
+        #endregion
+
+        #region Delete
+        [Fact]
+        public async Task DeleteSource_DeletesSource()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new SourcesController(context);
+            var id = context.Sources.First().Source_Id;
+
+            // Act
+            var result = await controller.DeleteSource(id);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result);
+            var deletedSource = await context.Sources.FindAsync(id);
+            Assert.Null(deletedSource);
+        }
+
+        [Fact]
+        public async Task DeleteSource_ReturnsNotFound()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new SourcesController(context);
+            var id = Guid.NewGuid();
+
+            // Act
+            var result = await controller.DeleteSource(id);
+
+            // Assert
+            Assert.IsType<NotFoundResult>(result);
+        }
+        #endregion
+
+        [Fact]
+        public async Task ConcurrentPutSource_ThrowsDbUpdateConcurrencyException()
+        {
+            // Arrange
+            var options = new DbContextOptionsBuilder<HelixContext>()
+                .UseInMemoryDatabase(databaseName: "TestDatabase")
+                .Options;
+
+            // Seed the database
+            SeedDatabase(options);
+
+            // First context and controller
+            using var context1 = new HelixContext(options);
+            var controller1 = new SourcesController(context1);
+            var sourceId = context1.Sources.First().Source_Id;
+            var sourceUpdate1 = await context1.Sources.FindAsync(sourceId);
+
+            // Second context and controller
+            using var context2 = new HelixContext(options);
+            var controller2 = new SourcesController(context2);
+            var sourceUpdate2 = await context2.Sources.FindAsync(sourceId);
+
+            // Update the entities
             sourceUpdate1.Publisher = "UpdatedPublisher1";
             sourceUpdate2.Publisher = "UpdatedPublisher2";
 
-            var result1 = await controller1.PutSource(sourceId, sourceUpdate1);
-            var result2 = await controller2.PutSource(sourceId, sourceUpdate2);
+            // Act
+            await controller1.PutSource(sourceId, sourceUpdate1);
+
+            // Modify RowVersion to simulate concurrency
+            sourceUpdate2.RowVersion = sourceUpdate1.RowVersion;
 
             // Assert
-            Assert.IsType<NoContentResult>(result1);
-            // Depending on how your system handles concurrency, you might expect different results here:
-            Assert.IsType<NoContentResult>(result2); // if last write wins
-            Assert.IsType<ConflictResult>(result2);  // if there's a concurrency check causing conflict
+            var exception = await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => controller2.PutSource(sourceId, sourceUpdate2));
+            Assert.NotNull(exception);
+        }
+
+        [Fact]
+        public async Task ConcurrentPatchSource_ThrowsDbUpdateConcurrencyException()
+        {
+            // Arrange
+            var options = _options;
+            //var options = new DbContextOptionsBuilder<HelixContext>()
+            //    .UseInMemoryDatabase(databaseName: "TestDatabase")
+            //    .Options;
+
+            // Seed the database
+            SeedDatabase(options);
+
+            // First context and controller
+            using var context1 = new HelixContext(options);
+            var controller1 = new SourcesController(context1);
+            var sourceId = context1.Sources.First().Source_Id;
+            var sourceUpdate1 = await context1.Sources.FindAsync(sourceId);
+
+            // Second context and controller
+            using var context2 = new HelixContext(options);
+            var controller2 = new SourcesController(context2);
+            var sourceUpdate2 = await context2.Sources.FindAsync(sourceId);
+
+            // Create a JsonPatchDocument
+            var patchDoc1 = new JsonPatchDocument<Source>();
+            patchDoc1.Replace(s => s.Publisher, "UpdatedPublisher1");
+
+            var patchDoc2 = new JsonPatchDocument<Source>();
+            patchDoc2.Replace(s => s.Publisher, "UpdatedPublisher2");
+
+            // Act
+            await controller1.PatchSource(sourceId, patchDoc1);
+
+            // Modify RowVersion to simulate concurrency
+            sourceUpdate2.RowVersion = sourceUpdate1.RowVersion;
+
+            // Assert
+            var exception = await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => controller2.PatchSource(sourceId, patchDoc2));
+            Assert.NotNull(exception);
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿namespace HelixAPI.Models
+﻿namespace HelixAPI.Models.ModelHelpers
 {
     public class QueryDto(string SortByValue)
     {

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HelixAPI.Controllers;
 using HelixAPI.Models;
+using HelixAPI.Models.ModelHelpers;
 using HelixAPI.Contexts;
 using Microsoft.AspNetCore.JsonPatch;
 using System.Dynamic;
@@ -17,6 +18,7 @@ namespace HelixAPI.Tests
         private readonly Mock<UserService> _userServiceMock;
         private readonly Mock<TokenService> _tokenServiceMock;
 
+        #region Helpers
         public UsersControllerTests()
         {
             _options = new DbContextOptionsBuilder<HelixContext>()
@@ -58,6 +60,23 @@ namespace HelixAPI.Tests
             context.Database.EnsureDeleted();
         }
 
+        private static User GenerateUser(Guid id, string username, bool active)
+        {
+            var user = new User
+            {
+                User_Id = id,
+                Username = username,
+                Email = "test@Email",
+                Password = "Test",
+                Active = active,
+                RowVersion = [0]
+            };
+
+            return user;
+        }
+        #endregion
+
+        #region GET
         [Fact]
         public async Task GetUsers_ReturnsAllUsers()
         {
@@ -107,6 +126,90 @@ namespace HelixAPI.Tests
         }
 
         [Fact]
+        public async Task GetUsers_ReturnsEmptyList_WhenNoSourcesExist()
+        {
+            var emptyDbContextOptions = new DbContextOptionsBuilder<HelixContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new HelixContext(emptyDbContextOptions);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
+
+            // Act
+            var result = await controller.GetUsers();
+
+            // Assert
+            var actionResult = Assert.IsType<ActionResult<IEnumerable<User>>>(result);
+            var returnValue = Assert.IsType<List<User>>(actionResult.Value);
+            Assert.Empty(returnValue);
+        }
+        #endregion
+
+        #region Query
+        [Fact]
+        public async Task QueryUsers_ReturnsFilteredAndPagedResults()
+        {
+            using var context = new HelixContext(_options);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
+
+            var queryDto = new QueryDto("User_ID")
+            {
+                Filters =
+                [
+                    new() { Property = "Active", Operation = "equals", Value = "true" }
+                ],
+                Size = 1,
+                Offset = 0,
+                SortBy = "Username",
+                SortOrder = "desc",
+                Fields = null
+            };
+
+            // Act
+            var result = await controller.QueryUsers(queryDto);
+
+            // Assert
+            var actionResult = Assert.IsType<OkObjectResult>(result);
+            var returnValue = Assert.IsAssignableFrom<List<User>>(actionResult.Value);
+
+            Assert.Single(returnValue);
+            Assert.True(returnValue.First().Active);
+        }
+
+        [Fact]
+        public async Task QueryUsers_ReturnsSelectedFields()
+        {
+            using var context = new HelixContext(_options);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
+
+            var queryDto = new QueryDto("User_ID")
+            {
+                Filters = [],
+                Size = 100,
+                Offset = 0,
+                SortBy = "Username",
+                SortOrder = "asc",
+                Fields = "Username"
+            };
+
+            // Act
+            var result = await controller.QueryUsers(queryDto);
+
+            // Assert
+            var actionResult = Assert.IsType<OkObjectResult>(result);
+            var returnValue = Assert.IsAssignableFrom<IEnumerable<ExpandoObject>>(actionResult.Value);
+
+            foreach (var item in returnValue)
+            {
+                var dict = Assert.IsType<ExpandoObject>(item);
+                Assert.Contains("Username", dict);
+                Assert.DoesNotContain("Email", dict);
+            }
+        }
+        #endregion
+
+        #region POST
+        [Fact]
         public async Task RegisterUser_CreatesUser()
         {
             // Arrange
@@ -124,6 +227,26 @@ namespace HelixAPI.Tests
             Assert.Equal(user.User_Id, returnValue.User_Id);
         }
 
+        [Fact]
+        public async Task PostEntity_ReturnsBadRequest_WhenModelStateIsInvalid()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
+            controller.ModelState.AddModelError("Username", "Required");
+
+            var user = GenerateUser(Guid.NewGuid(), string.Empty, false);
+
+            // Act
+            var result = await controller.RegisterUser(user);
+
+            // Assert
+            var actionResult = Assert.IsType<ActionResult<User>>(result);
+            Assert.IsType<BadRequestObjectResult>(actionResult.Result);
+        }
+        #endregion
+
+        #region Login
         [Fact]
         public async Task Login_ReturnsToken_WhenCredentialsAreValid()
         {
@@ -184,7 +307,9 @@ namespace HelixAPI.Tests
             // Assert
             Assert.IsType<UnauthorizedObjectResult>(result);
         }
+        #endregion
 
+        #region PUT
         [Fact]
         public async Task PutUser_UpdatesUser()
         {
@@ -200,7 +325,7 @@ namespace HelixAPI.Tests
             Assert.IsType<NoContentResult>(result);
 
             var updatedUser = await context.Users.FindAsync(id);
-            Assert.Equal(false, updatedUser.Active);
+            Assert.False(updatedUser?.Active);
         }
 
         [Fact]
@@ -218,7 +343,30 @@ namespace HelixAPI.Tests
             // Assert
             Assert.IsType<BadRequestResult>(result);
         }
+        #endregion
 
+        #region PATCH
+        [Fact]
+        public async Task PatchUser_UpdatesUser()
+        {
+            using var context = new HelixContext(_options);
+            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
+            var id = context.Users.First().User_Id;
+            var patchDoc = new JsonPatchDocument<User>();
+            patchDoc.Replace(u => u.Active, false);
+
+            // Act
+            var result = await controller.PatchUser(id, patchDoc);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result);
+
+            var updatedUser = await context.Users.FindAsync(id);
+            Assert.False(updatedUser?.Active);
+        }
+        #endregion
+
+        #region Delete
         [Fact]
         public async Task DeleteUser_DeletesUser()
         {
@@ -250,99 +398,6 @@ namespace HelixAPI.Tests
             // Assert
             Assert.IsType<NotFoundResult>(result);
         }
-
-        [Fact]
-        public async Task PatchUser_UpdatesUser()
-        {
-            using var context = new HelixContext(_options);
-            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
-            var id = context.Users.First().User_Id;
-            var patchDoc = new JsonPatchDocument<User>();
-            patchDoc.Replace(u => u.Active, false);
-
-            // Act
-            var result = await controller.PatchUser(id, patchDoc);
-
-            // Assert
-            Assert.IsType<NoContentResult>(result);
-
-            var updatedUser = await context.Users.FindAsync(id);
-            Assert.Equal(false, updatedUser.Active);
-        }
-
-        [Fact]
-        public async Task QueryUsers_ReturnsFilteredAndPagedResults()
-        {
-            using var context = new HelixContext(_options);
-            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
-
-            var queryDto = new QueryDto("User_ID")
-            {
-                Filters =
-                [
-                    new() { Property = "Active", Operation = "equals", Value = "true" }
-                ],
-                Size = 1,
-                Offset = 0,
-                SortBy = "Username",
-                SortOrder = "desc",
-                Fields = null
-            };
-
-            // Act
-            var result = await controller.QueryUsers(queryDto);
-
-            // Assert
-            var actionResult = Assert.IsType<OkObjectResult>(result);
-            var returnValue = Assert.IsAssignableFrom<List<User>>(actionResult.Value);
-
-            Assert.Single(returnValue);
-            Assert.Equal(true, returnValue.First().Active);
-        }
-
-        [Fact]
-        public async Task QueryUsers_ReturnsSelectedFields()
-        {
-            using var context = new HelixContext(_options);
-            var controller = new UsersController(context, _userServiceMock.Object, _tokenServiceMock.Object);
-
-            var queryDto = new QueryDto("User_ID")
-            {
-                Filters = [],
-                Size = 100,
-                Offset = 0,
-                SortBy = "Username",
-                SortOrder = "asc",
-                Fields = "Username"
-            };
-
-            // Act
-            var result = await controller.QueryUsers(queryDto);
-
-            // Assert
-            var actionResult = Assert.IsType<OkObjectResult>(result);
-            var returnValue = Assert.IsAssignableFrom<IEnumerable<ExpandoObject>>(actionResult.Value);
-
-            foreach (var item in returnValue)
-            {
-                var dict = Assert.IsType<ExpandoObject>(item);
-                Assert.Contains("Username", dict);
-                Assert.DoesNotContain("Email", dict);
-            }
-        }
-
-        private static User GenerateUser(Guid id, string username, bool active)
-        {
-            var user = new User
-            {
-                User_Id = id,
-                Username = username,
-                Email = "test@Email",
-                Password = "Test",
-                Active = active
-            };
-
-            return user;
-        }
+        #endregion
     }
 }

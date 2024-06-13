@@ -15,5 +15,8 @@ namespace HelixAPI.Models
 
         [Required]
         public required RelationshipType Relationship_Type { get; set; }
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; }  // Concurrency token
     }
 }

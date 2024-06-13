@@ -6,6 +6,7 @@ using HelixAPI.Models;
 using HelixAPI.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using System.Linq.Dynamic.Core;
+using HelixAPI.Models.ModelHelpers;
 
 namespace HelixAPI.Controllers
 {
@@ -21,6 +22,9 @@ namespace HelixAPI.Controllers
         [HttpPost]
         public async Task<ActionResult<EntityRelationship>> PostRelationship([FromBody] EntityRelationship relationship)
         {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
             _context.EntityRelationships.Add(relationship);
             await _context.SaveChangesAsync();
             return CreatedAtAction("GetRelationship", new { id = relationship.Relationship_Id }, relationship);
@@ -48,8 +52,8 @@ namespace HelixAPI.Controllers
         #endregion
 
         #region Query
-        // POST: api/v1/EntityRelationships/query
-        [HttpPost("query")]
+        // GET: api/v1/EntityRelationships/query
+        [HttpGet("query")]
         public async Task<IActionResult> QueryRelationships([FromBody] QueryDto queryDto)
         {
             var relationships = await QueryHelpers.ProcessQueryFilters(queryDto, _context.EntityRelationships).ToListAsync();

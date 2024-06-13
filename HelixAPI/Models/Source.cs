@@ -31,5 +31,8 @@ namespace HelixAPI.Models
 
         [Required]
         public required Format Format { get; set; }
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; }  // Concurrency token
     }
 }

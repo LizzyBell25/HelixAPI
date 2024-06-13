@@ -6,6 +6,7 @@ using HelixAPI.Models;
 using HelixAPI.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using System.Linq.Dynamic.Core;
+using HelixAPI.Models.ModelHelpers;
 
 namespace HelixAPI.Controllers
 {
@@ -21,6 +22,9 @@ namespace HelixAPI.Controllers
         [HttpPost]
         public async Task<ActionResult<Creator>> PostCreator([FromBody] Creator creator)
         {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
             _context.Creators.Add(creator);
             await _context.SaveChangesAsync();
             return CreatedAtAction("GetCreator", new { id = creator.Creator_Id }, creator);
@@ -48,8 +52,8 @@ namespace HelixAPI.Controllers
         #endregion
 
         #region Query
-        // POST: api/v1/Creators/query
-        [HttpPost("query")]
+        // GET: api/v1/Creators/query
+        [HttpGet("query")]
         public async Task<IActionResult> QueryCreators([FromBody] QueryDto queryDto)
         {
             var creators = await QueryHelpers.ProcessQueryFilters(queryDto, _context.Creators).ToListAsync();

@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using HelixAPI.Models;
 using HelixAPI.Interfaces;
+using HelixAPI.Models.ModelHelpers;
 
 namespace HelixAPI.Services
 {

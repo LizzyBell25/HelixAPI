@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HelixAPI.Controllers;
 using HelixAPI.Models;
+using HelixAPI.Models.ModelHelpers;
 using HelixAPI.Contexts;
 using Microsoft.AspNetCore.JsonPatch;
 using System.Dynamic;
@@ -13,6 +14,7 @@ namespace HelixAPI.Tests
     {
         private readonly DbContextOptions<HelixContext> _options;
 
+        #region Helpers
         public RelationshipsControllerTests()
         {
             _options = new DbContextOptionsBuilder<HelixContext>()
@@ -42,6 +44,22 @@ namespace HelixAPI.Tests
             context.Database.EnsureDeleted();
         }
 
+        private static EntityRelationship GenerateRelationship(Guid id, Guid E1, Guid E2)
+        {
+            var relationship = new EntityRelationship
+            {
+                Relationship_Id = id,
+                Entity1_Id = E1,
+                Entity2_Id = E2,
+                Relationship_Type = RelationshipType.Enemy,
+                RowVersion = [0]
+            };
+
+            return relationship;
+        }
+        #endregion
+
+        #region GET
         [Fact]
         public async Task GetRelationships_ReturnsAllRelationships()
         {
@@ -91,109 +109,26 @@ namespace HelixAPI.Tests
         }
 
         [Fact]
-        public async Task PostRelationship_CreatesRelationship()
+        public async Task GetRelationships_ReturnsEmptyList_WhenNoSourcesExist()
         {
-            // Arrange
-            using var context = new HelixContext(_options);
+            var emptyDbContextOptions = new DbContextOptionsBuilder<HelixContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new HelixContext(emptyDbContextOptions);
             var controller = new EntityRelationshipsController(context);
-            var relationship = GenerateRelationship(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
 
             // Act
-            var result = await controller.PostRelationship(relationship);
+            var result = await controller.GetRelationships();
 
             // Assert
-            var actionResult = Assert.IsType<ActionResult<EntityRelationship>>(result);
-            var createdAtActionResult = Assert.IsType<CreatedAtActionResult>(actionResult.Result);
-            var returnValue = Assert.IsType<EntityRelationship>(createdAtActionResult.Value);
-            Assert.Equal(relationship.Relationship_Id, returnValue.Relationship_Id);
+            var actionResult = Assert.IsType<ActionResult<IEnumerable<EntityRelationship>>>(result);
+            var returnValue = Assert.IsType<List<EntityRelationship>>(actionResult.Value);
+            Assert.Empty(returnValue);
         }
+        #endregion
 
-        [Fact]
-        public async Task PutRelationship_UpdatesRelationship()
-        {
-            using var context = new HelixContext(_options);
-            var controller = new EntityRelationshipsController(context);
-            var id = context.EntityRelationships.First().Relationship_Id;
-            var e3 = Guid.NewGuid();
-            var relationship = GenerateRelationship(id, Guid.NewGuid(), e3);
-
-            // Act
-            var result = await controller.PutRelationship(id, relationship);
-
-            // Assert
-            Assert.IsType<NoContentResult>(result);
-
-            var updatedRelationship = await context.EntityRelationships.FindAsync(id);
-            Assert.Equal(e3, updatedRelationship.Entity2_Id);
-        }
-
-        [Fact]
-        public async Task PutRelationship_ReturnsBadRequest()
-        {
-            // Arrange
-            using var context = new HelixContext(_options);
-            var controller = new EntityRelationshipsController(context);
-            var id = Guid.NewGuid();
-            var relationship = GenerateRelationship(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
-
-            // Act
-            var result = await controller.PutRelationship(id, relationship);
-
-            // Assert
-            Assert.IsType<BadRequestResult>(result);
-        }
-
-        [Fact]
-        public async Task DeleteRelationship_DeletesRelationship()
-        {
-            // Arrange
-            using var context = new HelixContext(_options);
-            var controller = new EntityRelationshipsController(context);
-            var id = context.EntityRelationships.First().Relationship_Id;
-
-            // Act
-            var result = await controller.DeleteRelationship(id);
-
-            // Assert
-            Assert.IsType<NoContentResult>(result);
-            var deletedRelationship = await context.EntityRelationships.FindAsync(id);
-            Assert.Null(deletedRelationship);
-        }
-
-        [Fact]
-        public async Task DeleteRelationship_ReturnsNotFound()
-        {
-            // Arrange
-            using var context = new HelixContext(_options);
-            var controller = new EntityRelationshipsController(context);
-            var id = Guid.NewGuid();
-
-            // Act
-            var result = await controller.DeleteRelationship(id);
-
-            // Assert
-            Assert.IsType<NotFoundResult>(result);
-        }
-
-        [Fact]
-        public async Task PatchRelationship_UpdatesRelationship()
-        {
-            using var context = new HelixContext(_options);
-            var controller = new EntityRelationshipsController(context);
-            var id = context.EntityRelationships.First().Relationship_Id;
-            var patchDoc = new JsonPatchDocument<EntityRelationship>();
-            patchDoc.Replace(c => c.Relationship_Type, RelationshipType.Spouse);
-
-            // Act
-            var result = await controller.PatchRelationship(id, patchDoc);
-
-            // Assert
-            Assert.IsType<NoContentResult>(result);
-
-            var updatedRelationship = await context.EntityRelationships.FindAsync(id);
-            Assert.Equal(RelationshipType.Spouse, updatedRelationship.Relationship_Type);
-        }
-
+        #region Query
         [Fact]
         public async Task QueryRelationships_ReturnsFilteredAndPagedResults()
         {
@@ -254,18 +189,136 @@ namespace HelixAPI.Tests
                 Assert.DoesNotContain("Entity1_Id", dict);
             }
         }
+        #endregion
 
-        private static EntityRelationship GenerateRelationship(Guid id, Guid E1, Guid E2)
+        #region POST
+        [Fact]
+        public async Task PostRelationship_CreatesRelationship()
         {
-            var relationship = new EntityRelationship
-            {
-                Relationship_Id = id,
-                Entity1_Id = E1,
-                Entity2_Id = E2,
-                Relationship_Type = RelationshipType.Enemy
-            };
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new EntityRelationshipsController(context);
+            var relationship = GenerateRelationship(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
 
-            return relationship;
+            // Act
+            var result = await controller.PostRelationship(relationship);
+
+            // Assert
+            var actionResult = Assert.IsType<ActionResult<EntityRelationship>>(result);
+            var createdAtActionResult = Assert.IsType<CreatedAtActionResult>(actionResult.Result);
+            var returnValue = Assert.IsType<EntityRelationship>(createdAtActionResult.Value);
+            Assert.Equal(relationship.Relationship_Id, returnValue.Relationship_Id);
         }
+
+        [Fact]
+        public async Task PostEntity_ReturnsBadRequest_WhenModelStateIsInvalid()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new EntityRelationshipsController(context);
+            controller.ModelState.AddModelError("Entity1_Id", "Required");
+
+            var relationship = GenerateRelationship(Guid.NewGuid(), Guid.Empty, Guid.Empty);
+
+            // Act
+            var result = await controller.PostRelationship(relationship);
+
+            // Assert
+            var actionResult = Assert.IsType<ActionResult<EntityRelationship>>(result);
+            Assert.IsType<BadRequestObjectResult>(actionResult.Result);
+        }
+        #endregion
+
+        #region PUT
+        [Fact]
+        public async Task PutRelationship_UpdatesRelationship()
+        {
+            using var context = new HelixContext(_options);
+            var controller = new EntityRelationshipsController(context);
+            var id = context.EntityRelationships.First().Relationship_Id;
+            var e3 = Guid.NewGuid();
+            var relationship = GenerateRelationship(id, Guid.NewGuid(), e3);
+
+            // Act
+            var result = await controller.PutRelationship(id, relationship);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result);
+
+            var updatedRelationship = await context.EntityRelationships.FindAsync(id);
+            Assert.Equal(e3, updatedRelationship.Entity2_Id);
+        }
+
+        [Fact]
+        public async Task PutRelationship_ReturnsBadRequest()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new EntityRelationshipsController(context);
+            var id = Guid.NewGuid();
+            var relationship = GenerateRelationship(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+
+            // Act
+            var result = await controller.PutRelationship(id, relationship);
+
+            // Assert
+            Assert.IsType<BadRequestResult>(result);
+        }
+        #endregion
+
+        #region PATCH
+        [Fact]
+        public async Task PatchRelationship_UpdatesRelationship()
+        {
+            using var context = new HelixContext(_options);
+            var controller = new EntityRelationshipsController(context);
+            var id = context.EntityRelationships.First().Relationship_Id;
+            var patchDoc = new JsonPatchDocument<EntityRelationship>();
+            patchDoc.Replace(c => c.Relationship_Type, RelationshipType.Spouse);
+
+            // Act
+            var result = await controller.PatchRelationship(id, patchDoc);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result);
+
+            var updatedRelationship = await context.EntityRelationships.FindAsync(id);
+            Assert.Equal(RelationshipType.Spouse, updatedRelationship.Relationship_Type);
+        }
+        #endregion
+
+        #region Delete
+        [Fact]
+        public async Task DeleteRelationship_DeletesRelationship()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new EntityRelationshipsController(context);
+            var id = context.EntityRelationships.First().Relationship_Id;
+
+            // Act
+            var result = await controller.DeleteRelationship(id);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result);
+            var deletedRelationship = await context.EntityRelationships.FindAsync(id);
+            Assert.Null(deletedRelationship);
+        }
+
+        [Fact]
+        public async Task DeleteRelationship_ReturnsNotFound()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new EntityRelationshipsController(context);
+            var id = Guid.NewGuid();
+
+            // Act
+            var result = await controller.DeleteRelationship(id);
+
+            // Assert
+            Assert.IsType<NotFoundResult>(result);
+        }
+        #endregion
     }
 }

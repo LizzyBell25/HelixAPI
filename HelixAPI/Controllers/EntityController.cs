@@ -6,6 +6,7 @@ using HelixAPI.Models;
 using HelixAPI.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using System.Linq.Dynamic.Core;
+using HelixAPI.Models.ModelHelpers;
 
 namespace HelixAPI.Controllers
 {
@@ -21,6 +22,9 @@ namespace HelixAPI.Controllers
         [HttpPost]
         public async Task<ActionResult<Entity>> PostEntity([FromBody] Entity entity)
         {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
             _context.Entities.Add(entity);
             await _context.SaveChangesAsync();
             return CreatedAtAction("GetEntity", new { id = entity.Entity_Id }, entity);
@@ -48,8 +52,8 @@ namespace HelixAPI.Controllers
         #endregion
 
         #region Query
-        // POST: api/v1/Entities/query
-        [HttpPost("query")]
+        // GET: api/v1/Entities/query
+        [HttpGet("query")]
         public async Task<IActionResult> QueryEntities([FromBody] QueryDto queryDto)
         {
             var entities = await QueryHelpers.ProcessQueryFilters(queryDto, _context.Entities).ToListAsync();

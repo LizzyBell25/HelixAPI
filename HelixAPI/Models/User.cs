@@ -21,6 +21,9 @@ namespace HelixAPI.Models
 
         [Required]
         public required bool Active { get; set; } = true;
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; }  // Concurrency token
     }
 
     public class RegistrationDto

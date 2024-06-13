@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HelixAPI.Controllers;
 using HelixAPI.Models;
+using HelixAPI.Models.ModelHelpers;
 using HelixAPI.Contexts;
 using Microsoft.AspNetCore.JsonPatch;
 using System.Dynamic;
@@ -13,6 +14,7 @@ namespace HelixAPI.Tests
     {
         private readonly DbContextOptions<HelixContext> _options;
 
+        #region Helpers
         public EntitiesControllerTests()
         {
             _options = new DbContextOptionsBuilder<HelixContext>()
@@ -41,6 +43,21 @@ namespace HelixAPI.Tests
             context.Database.EnsureDeleted();
         }
 
+        private static Entity GenerateEntity(Guid id, string name)
+        {
+            var entity = new Entity
+            {
+                Entity_Id = id,
+                Name = name,
+                Type = Catagory.God,
+                RowVersion = [0]
+            };
+
+            return entity;
+        }
+        #endregion
+
+        #region GET
         [Fact]
         public async Task GetEntities_ReturnsAllEntities()
         {
@@ -90,114 +107,31 @@ namespace HelixAPI.Tests
         }
 
         [Fact]
-        public async Task PostEntity_CreatesEntity()
+        public async Task GetUsers_ReturnsEmptyList_WhenNoSourcesExist()
         {
-            // Arrange
-            using var context = new HelixContext(_options);
+            var emptyDbContextOptions = new DbContextOptionsBuilder<HelixContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new HelixContext(emptyDbContextOptions);
             var controller = new EntitiesController(context);
-            var entity = GenerateEntity(Guid.NewGuid(), "Entity3");
 
             // Act
-            var result = await controller.PostEntity(entity);
-
+            var result = await controller.GetEntities();
             // Assert
-            var actionResult = Assert.IsType<ActionResult<Entity>>(result);
-            var createdAtActionResult = Assert.IsType<CreatedAtActionResult>(actionResult.Result);
-            var returnValue = Assert.IsType<Entity>(createdAtActionResult.Value);
-            Assert.Equal(entity.Entity_Id, returnValue.Entity_Id);
+            var actionResult = Assert.IsType<ActionResult<IEnumerable<Entity>>>(result);
+            var returnValue = Assert.IsType<List<Entity>>(actionResult.Value);
+            Assert.Empty(returnValue);
         }
+        #endregion
 
-        [Fact]
-        public async Task PutEntity_UpdatesEntity()
-        {
-            using var context = new HelixContext(_options);
-            var controller = new EntitiesController(context);
-            var id = context.Entities.First().Entity_Id;
-            var entity = GenerateEntity(id, "UpdatedEntity");
-
-            // Act
-            var result = await controller.PutEntity(id, entity);
-
-            // Assert
-            Assert.IsType<NoContentResult>(result);
-
-            var updatedEntity = await context.Entities.FindAsync(id);
-            Assert.Equal("UpdatedEntity", updatedEntity.Name);
-        }
-
-        [Fact]
-        public async Task PutEntity_ReturnsBadRequest()
-        {
-            // Arrange
-            using var context = new HelixContext(_options);
-            var controller = new EntitiesController(context);
-            var id = Guid.NewGuid();
-            var entity = GenerateEntity(Guid.NewGuid(), "Entity1");
-
-            // Act
-            var result = await controller.PutEntity(id, entity);
-
-            // Assert
-            Assert.IsType<BadRequestResult>(result);
-        }
-
-        [Fact]
-        public async Task DeleteEntity_DeletesEntity()
-        {
-            // Arrange
-            using var context = new HelixContext(_options);
-            var controller = new EntitiesController(context);
-            var id = context.Entities.First().Entity_Id;
-
-            // Act
-            var result = await controller.DeleteEntity(id);
-
-            // Assert
-            Assert.IsType<NoContentResult>(result);
-            var deletedEntity = await context.Entities.FindAsync(id);
-            Assert.Null(deletedEntity);
-        }
-
-        [Fact]
-        public async Task DeleteEntity_ReturnsNotFound()
-        {
-            // Arrange
-            using var context = new HelixContext(_options);
-            var controller = new EntitiesController(context);
-            var id = Guid.NewGuid();
-
-            // Act
-            var result = await controller.DeleteEntity(id);
-
-            // Assert
-            Assert.IsType<NotFoundResult>(result);
-        }
-
-        [Fact]
-        public async Task PatchEntity_UpdatesEntity()
-        {
-            using var context = new HelixContext(_options);
-            var controller = new EntitiesController(context);
-            var id = context.Entities.First().Entity_Id;
-            var patchDoc = new JsonPatchDocument<Entity>();
-            patchDoc.Replace(e => e.Name, "UpdatedPublisher");
-
-            // Act
-            var result = await controller.PatchEntity(id, patchDoc);
-
-            // Assert
-            Assert.IsType<NoContentResult>(result);
-
-            var updatedEntity = await context.Entities.FindAsync(id);
-            Assert.Equal("UpdatedPublisher", updatedEntity.Name);
-        }
-
+        #region Query
         [Fact]
         public async Task QueryEntities_ReturnsFilteredAndPagedResults()
         {
             using var context = new HelixContext(_options);
-            var controller = new EntitiesController(context); 
-            
+            var controller = new EntitiesController(context);
+
             var queryDto = new QueryDto("Entity_Id")
             {
                 Filters =
@@ -252,17 +186,135 @@ namespace HelixAPI.Tests
                 Assert.DoesNotContain("Type", dict);
             }
         }
+        #endregion
 
-        private static Entity GenerateEntity(Guid id, string publisher)
+        #region POST
+        [Fact]
+        public async Task PostEntity_CreatesEntity()
         {
-            var entity = new Entity
-            {
-                Entity_Id = id,
-                Name = publisher,
-                Type = Catagory.God
-            };
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            var entity = GenerateEntity(Guid.NewGuid(), "Entity3");
 
-            return entity;
+            // Act
+            var result = await controller.PostEntity(entity);
+
+            // Assert
+            var actionResult = Assert.IsType<ActionResult<Entity>>(result);
+            var createdAtActionResult = Assert.IsType<CreatedAtActionResult>(actionResult.Result);
+            var returnValue = Assert.IsType<Entity>(createdAtActionResult.Value);
+            Assert.Equal(entity.Entity_Id, returnValue.Entity_Id);
         }
+
+        [Fact]
+        public async Task PostEntity_ReturnsBadRequest_WhenModelStateIsInvalid()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            controller.ModelState.AddModelError("Name", "Required");
+
+            var entity = GenerateEntity(Guid.NewGuid(), string.Empty);
+
+            // Act
+            var result = await controller.PostEntity(entity);
+
+            // Assert
+            var actionResult = Assert.IsType<ActionResult<Entity>>(result);
+            Assert.IsType<BadRequestObjectResult>(actionResult.Result);
+        }
+        #endregion
+
+        #region PUT
+        [Fact]
+        public async Task PutEntity_UpdatesEntity()
+        {
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            var id = context.Entities.First().Entity_Id;
+            var entity = GenerateEntity(id, "UpdatedEntity");
+
+            // Act
+            var result = await controller.PutEntity(id, entity);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result);
+
+            var updatedEntity = await context.Entities.FindAsync(id);
+            Assert.Equal("UpdatedEntity", updatedEntity.Name);
+        }
+
+        [Fact]
+        public async Task PutEntity_ReturnsBadRequest()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            var id = Guid.NewGuid();
+            var entity = GenerateEntity(Guid.NewGuid(), "Entity1");
+
+            // Act
+            var result = await controller.PutEntity(id, entity);
+
+            // Assert
+            Assert.IsType<BadRequestResult>(result);
+        }
+        #endregion
+
+        #region PATCH
+        [Fact]
+        public async Task PatchEntity_UpdatesEntity()
+        {
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            var id = context.Entities.First().Entity_Id;
+            var patchDoc = new JsonPatchDocument<Entity>();
+            patchDoc.Replace(e => e.Name, "UpdatedPublisher");
+
+            // Act
+            var result = await controller.PatchEntity(id, patchDoc);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result);
+
+            var updatedEntity = await context.Entities.FindAsync(id);
+            Assert.Equal("UpdatedPublisher", updatedEntity.Name);
+        }
+        #endregion
+
+        #region Delete
+        [Fact]
+        public async Task DeleteEntity_DeletesEntity()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            var id = context.Entities.First().Entity_Id;
+
+            // Act
+            var result = await controller.DeleteEntity(id);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result);
+            var deletedEntity = await context.Entities.FindAsync(id);
+            Assert.Null(deletedEntity);
+        }
+
+        [Fact]
+        public async Task DeleteEntity_ReturnsNotFound()
+        {
+            // Arrange
+            using var context = new HelixContext(_options);
+            var controller = new EntitiesController(context);
+            var id = Guid.NewGuid();
+
+            // Act
+            var result = await controller.DeleteEntity(id);
+
+            // Assert
+            Assert.IsType<NotFoundResult>(result);
+        }
+        #endregion
     }
 }

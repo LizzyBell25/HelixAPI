@@ -29,6 +29,13 @@ namespace HelixAPI.Contexts
             modelBuilder.Entity<Source>().Property(s => s.Format).HasConversion<string>();
             modelBuilder.Entity<Models.Index>().Property(i => i.Subject).HasConversion<string>();
             modelBuilder.Entity<EntityRelationship>().Property(r => r.Relationship_Type).HasConversion<string>();
+
+            modelBuilder.Entity<Entity>().Property(e => e.RowVersion).IsRowVersion();
+            modelBuilder.Entity<User>().Property(u => u.RowVersion).IsRowVersion();
+            modelBuilder.Entity<Creator>().Property(c => c.RowVersion).IsRowVersion();
+            modelBuilder.Entity<Source>().Property(s => s.RowVersion).IsRowVersion();
+            modelBuilder.Entity<Models.Index>().Property(i => i.RowVersion).IsRowVersion();
+            modelBuilder.Entity<EntityRelationship>().Property(r => r.RowVersion).IsRowVersion();
         }
     }
 }

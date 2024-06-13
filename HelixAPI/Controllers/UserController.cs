@@ -5,10 +5,9 @@ using HelixAPI.Contexts;
 using HelixAPI.Models;
 using HelixAPI.Helpers;
 using Microsoft.AspNetCore.Authorization;
-using HelixAPI.Services;
-using System.Linq;
 using System.Linq.Dynamic.Core;
 using HelixAPI.Interfaces;
+using HelixAPI.Models.ModelHelpers;
 
 namespace HelixAPI.Controllers
 {
@@ -27,6 +26,9 @@ namespace HelixAPI.Controllers
         [HttpPost("register")]
         public async Task<ActionResult<User>> RegisterUser([FromBody] User user)
         {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
             if (user == null)
                 return BadRequest();
 
@@ -77,8 +79,8 @@ namespace HelixAPI.Controllers
         #endregion
 
         #region Query
-        // POST: api/v1/Users/query
-        [HttpPost("query")]
+        // GET: api/v1/Users/query
+        [HttpGet("query")]
         public async Task<IActionResult> QueryUsers([FromBody] QueryDto queryDto)
         {
             var users = await QueryHelpers.ProcessQueryFilters(queryDto, _context.Users).ToListAsync();

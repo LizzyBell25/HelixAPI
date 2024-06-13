@@ -15,5 +15,8 @@ namespace HelixAPI.Models
 
         [Required]
         public Catagory Type { get; set; }
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; }  // Concurrency token
     }
 }

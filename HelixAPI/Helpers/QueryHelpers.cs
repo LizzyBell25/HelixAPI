@@ -1,4 +1,4 @@
-﻿using HelixAPI.Models;
+﻿using HelixAPI.Models.ModelHelpers;
 using Microsoft.EntityFrameworkCore;
 using System.Dynamic;
 using System.Linq.Dynamic.Core;
@@ -18,6 +18,9 @@ namespace HelixAPI.Helpers
             foreach (var filter in queryDto.Filters)
             {
                 if (!GetPropertyType<T>(out Type? propertyType, filter))
+                    continue;
+
+                if(propertyType == null)
                     continue;
 
                 // Handle enum properties

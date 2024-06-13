@@ -2,10 +2,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.JsonPatch;
 using HelixAPI.Contexts;
-using HelixAPI.Models;
 using HelixAPI.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using System.Linq.Dynamic.Core;
+using HelixAPI.Models.ModelHelpers;
 
 namespace HelixAPI.Controllers
 {
@@ -21,6 +21,9 @@ namespace HelixAPI.Controllers
         [HttpPost]
         public async Task<ActionResult<Models.Index>> PostIndex([FromBody] Models.Index index)
         {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
             _context.Indexes.Add(index);
             await _context.SaveChangesAsync();
             return CreatedAtAction("GetIndex", new { id = index.Index_Id }, index);
@@ -48,8 +51,8 @@ namespace HelixAPI.Controllers
         #endregion
 
         #region Query
-        // POST: api/v1/Indexes/query
-        [HttpPost("query")]
+        // GET: api/v1/Indexes/query
+        [HttpGet("query")]
         public async Task<IActionResult> QueryIndexes([FromBody] QueryDto queryDto)
         {
             var indexes = await QueryHelpers.ProcessQueryFilters(queryDto, _context.Indexes).ToListAsync();
